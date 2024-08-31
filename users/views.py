@@ -1,5 +1,8 @@
 """User views for user authentication logics"""
 
+# pylint: disable=no-member
+# pylint: disable=bare-except
+
 from random import randint
 from datetime import timedelta
 
@@ -10,10 +13,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+
 from ecoride.utils import send_otp_email
 
 from .models import OTP, User
-from .serializers import UserSerializer
+from .serializers import UserSerializer, CustomTokenObtainPairSerializer
 from .permissions import IsRider, IsUser
 
 
@@ -24,23 +31,26 @@ class RegisterView(APIView):
     def post(self, request):
         """Method for registering new user on post requests"""
 
-        if(request.data.get("message_type") is None):
-            return Response({'detail': 'message_type value is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        if request.data.get("message_type") is None:
+            return Response({'detail': 'message_type value is required'},\
+                            status=status.HTTP_400_BAD_REQUEST)
+       
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            otp_instance = OTP.objects.create(user=user, otp=str(randint(10000, 99999)), expires_at=timezone.now() + timedelta(minutes=5))
+            otp_instance = OTP.objects.create(user=user, otp=str(randint(10000, 99999)),\
+                                              expires_at=timezone.now() + timedelta(minutes=5))
 
             # Determine how to send the OTP based on message_type
             message_type = request.data.get('message_type', 'email').lower()
             if message_type == 'email':
                 send_otp_email(user, otp_instance.otp)
             elif message_type == 'sms':
-                return Response({'detail': 'SMS not available in development'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'detail': 'SMS not available in development'},\
+                                status=status.HTTP_404_NOT_FOUND)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-      
+     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivateUserView(APIView):
@@ -53,7 +63,8 @@ class ActivateUserView(APIView):
         otp = request.data.get('otp')
 
         if not user_id or not otp:
-            return Response({'detail': 'User id and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'User id and OTP are required.'},\
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = User.objects.get(id=user_id)
@@ -62,7 +73,8 @@ class ActivateUserView(APIView):
             if otp_instance.otp == otp and otp_instance.is_valid():
                 user.is_active = True
                 user.save()
-                return Response({'detail': 'OTP verified successfully, user activated.'}, status=status.HTTP_200_OK)
+                return Response({'detail': 'OTP verified successfully, user activated.'},\
+                                status=status.HTTP_200_OK)
             return Response({'detail': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
 
         except User.DoesNotExist:
@@ -80,7 +92,8 @@ class RequestNewOTPView(APIView):
         username = request.data.get('username')
 
         if not username:
-            return Response({'detail': f'{message_type.capitalize()} is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': f'{message_type.capitalize()} is required.'},\
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
             if message_type == 'email':
@@ -88,7 +101,8 @@ class RequestNewOTPView(APIView):
             elif message_type == 'sms':
                 user = User.objects.get(phone=username)
             else:
-                return Response({'detail': 'Invalid message type. Choose either "email" or "sms".'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'detail': 'Invalid message type. Choose either "email" or "sms".'},\
+                                status=status.HTTP_400_BAD_REQUEST)
 
             otp_instance, created = OTP.objects.get_or_create(user=user)
 
@@ -108,3 +122,40 @@ class RequestNewOTPView(APIView):
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         except OTP.DoesNotExist:
             return Response({'detail': 'OTP not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """
+    Custom token obtain view that uses 
+    the custom Token obtain serializer class
+    """
+    serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        # Invalidate all tokens for the user before issuing a new one
+        user = request.user
+        if user.is_authenticated:
+            tokens = RefreshToken.objects.filter(user=user)
+            for token in tokens:
+                try:
+                    BlacklistedToken.objects.create(token=token)
+                except:
+                    pass
+        
+        return super().post(request, *args, **kwargs)
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    Custom token refresh view for blakclisting previous tokens
+    """
+    def post(self, request, *args, **kwargs):
+        # Invalidate all tokens for the user before issuing a new one
+        user = request.user
+        if user.is_authenticated:
+            tokens = RefreshToken.objects.filter(user=user)
+            for token in tokens:
+                try:
+                    BlacklistedToken.objects.create(token=token)
+                except:
+                    pass
+        
+        return super().post(request, *args, **kwargs)
