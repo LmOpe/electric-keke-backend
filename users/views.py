@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from rest_framework import status
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -21,7 +21,6 @@ from ecoride.utils import send_otp_email
 
 from .models import OTP, User
 from .serializers import UserSerializer, CustomTokenObtainPairSerializer
-from .permissions import IsRider, IsUser
 
 
 class RegisterView(APIView):
@@ -37,7 +36,7 @@ class RegisterView(APIView):
         if request.data.get("password") is None or request.data.get("re_password") is None:
             return Response({'detail': 'Both password and re_password fields are required'},\
                             status=status.HTTP_400_BAD_REQUEST)
-      
+
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -53,7 +52,7 @@ class RegisterView(APIView):
                                 status=status.HTTP_404_NOT_FOUND)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivateUserView(APIView):

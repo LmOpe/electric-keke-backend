@@ -1,9 +1,11 @@
 """Serializers for the authentication related logic"""
 # pylint: disable=too-few-public-methods
+# pylint: disable=arguments-renamed
 
 from django.contrib.auth import authenticate
 
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User
@@ -49,7 +51,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         user = authenticate(request=self.context.get('request'), username=username, password=password)
 
         if not user:
-            raise serializers.ValidationError('Invalid credentials')
+            raise AuthenticationFailed('Invalid credentials')
 
         # If authentication is successful, add the user to attrs
         attrs['user'] = user
