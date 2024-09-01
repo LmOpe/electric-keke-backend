@@ -10,17 +10,30 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for serializing user data"""
+    re_password = serializers.CharField(write_only=True)
+
     class Meta:
         """Meta class"""
 
         model = User
-        fields = ['id', 'fullname', 'address', 'state_of_residence',\
-                   'role', 'email', 'phone', 'password']
+        fields = ['id', 'fullname', 'address', 'state_of_residence',
+                  'role', 'email', 'phone', 'password', 're_password']
         extra_kwargs = {
             'password': {'write_only': True},
             'id': {'read_only': True}
         }
+
+    def validate(self, data):
+        password = data.get('password')
+        re_password = data.get('re_password')
+
+        if password != re_password:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+
+        return data
+
     def create(self, validated_data):
+        validated_data.pop('re_password', None)  # Remove re_password before creating the user
         user = User.objects.create_user(**validated_data)
         return user
 

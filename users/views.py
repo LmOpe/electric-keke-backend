@@ -34,7 +34,10 @@ class RegisterView(APIView):
         if request.data.get("message_type") is None:
             return Response({'detail': 'message_type value is required'},\
                             status=status.HTTP_400_BAD_REQUEST)
-       
+        if request.data.get("password") is None or request.data.get("re_password") is None:
+            return Response({'detail': 'Both password and re_password fields are required'},\
+                            status=status.HTTP_400_BAD_REQUEST)
+      
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -50,7 +53,7 @@ class RegisterView(APIView):
                                 status=status.HTTP_404_NOT_FOUND)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-     
+    
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivateUserView(APIView):
@@ -75,7 +78,8 @@ class ActivateUserView(APIView):
                 user.save()
                 return Response({'detail': 'OTP verified successfully, user activated.'},\
                                 status=status.HTTP_200_OK)
-            return Response({'detail': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Invalid or expired OTP.'},\
+                            status=status.HTTP_400_BAD_REQUEST)
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -101,8 +105,8 @@ class RequestNewOTPView(APIView):
             elif message_type == 'sms':
                 user = User.objects.get(phone=username)
             else:
-                return Response({'detail': 'Invalid message type. Choose either "email" or "sms".'},\
-                                status=status.HTTP_400_BAD_REQUEST)
+                return Response({'detail': 'Invalid message type. Choose either \
+                                 "email" or "sms".'}, status=status.HTTP_400_BAD_REQUEST)
 
             otp_instance, created = OTP.objects.get_or_create(user=user)
 
@@ -114,7 +118,8 @@ class RequestNewOTPView(APIView):
             if message_type == 'email':
                 send_otp_email(user, otp_instance.otp)
             elif message_type == 'sms':
-                return Response({'detail': 'SMS not available in development'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'detail': 'SMS not available in development'},\
+                                status=status.HTTP_404_NOT_FOUND)
 
             return Response({'detail': 'New OTP sent.'}, status=status.HTTP_200_OK)
 
@@ -140,7 +145,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     BlacklistedToken.objects.create(token=token)
                 except:
                     pass
-        
+
         return super().post(request, *args, **kwargs)
 
 class CustomTokenRefreshView(TokenRefreshView):
@@ -157,5 +162,38 @@ class CustomTokenRefreshView(TokenRefreshView):
                     BlacklistedToken.objects.create(token=token)
                 except:
                     pass
-        
+
         return super().post(request, *args, **kwargs)
+
+class ResetPasswordView(APIView):
+    """View to reset the user's password after OTP verification"""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """Password resetting logic"""
+        username = request.data.get('username')
+        password = request.data.get('password')
+        re_password = request.data.get('re_password')
+
+        if not username:
+            return Response({'detail': 'Username is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not password or not re_password:
+            return Response({'detail': 'Password and Confirm Password are required.'},\
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if password != re_password:
+            return Response({'detail': 'Passwords do not match.'},\
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=username) \
+                if '@' in username else User.objects.get(phone=username)
+            user.set_password(password)
+            user.save()
+
+            return Response({'detail': 'Password has been reset successfully.'},\
+                            status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
