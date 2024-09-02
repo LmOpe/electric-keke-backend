@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "fudhouse/wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "script": "bash vercel_build.sh",
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.x"
+      }
+    }
+  ],
+  "routes": [{ "src": "/(.*)", "dest": "fudhouse/wsgi.py" }],
+  "env": {
+    "DJANGO_ENV": "production"
+  }
+}

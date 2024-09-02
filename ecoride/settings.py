@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
+    'drf_yasg',
     'users',
 ]
 
@@ -137,7 +138,6 @@ AUTH_USER_MODEL = "users.User"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 AUTHENTICATION_BACKENDS = [
     'users.authentications.EmailOrPhoneBackend',
@@ -187,6 +187,3 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_HTTPONLY = True
 
-# CORS_ALLOWED_ORIGINS = [
-#     'https://yourfrontenddomain.com',
-# ]
