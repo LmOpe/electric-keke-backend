@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "fudhouse/wsgi.py",
+      "src": "ecoride/wsgi.py",
       "use": "@vercel/python",
       "config": {
         "script": "bash vercel_build.sh",
@@ -11,7 +11,7 @@
       }
     }
   ],
-  "routes": [{ "src": "/(.*)", "dest": "fudhouse/wsgi.py" }],
+  "routes": [{ "src": "/(.*)", "dest": "ecoride/wsgi.py" }],
   "env": {
     "DJANGO_ENV": "production"
   }
