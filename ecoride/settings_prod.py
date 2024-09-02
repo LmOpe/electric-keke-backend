@@ -7,7 +7,7 @@ load_dotenv()
 
 # Local settings
 SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = os.getenv("DEBUG")
+DEBUG = False
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", 'localhost,127.0.0.1,.vercel.app,.now.sh,https://electric-keke-backend.vercel.app/,https://electric-keke-backend-julp8kypl-lmopes-projects.vercel.app/').split(',')
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
