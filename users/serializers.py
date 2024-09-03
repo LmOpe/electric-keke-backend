@@ -13,13 +13,14 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for serializing user data"""
     re_password = serializers.CharField(write_only=True)
+    message_type = serializers.ChoiceField(choices=['email', 'sms'], write_only=True)
 
     class Meta:
         """Meta class"""
 
         model = User
         fields = ['id', 'fullname', 'address', 'state_of_residence',
-                  'role', 'email', 'phone', 'password', 're_password']
+                  'role', 'email', 'phone', 'password', 're_password', 'message_type']
         extra_kwargs = {
             'password': {'write_only': True},
             'id': {'read_only': True}
