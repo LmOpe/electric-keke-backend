@@ -4,7 +4,11 @@
     {
       "src": "ecoride/wsgi.py",
       "use": "@vercel/python",
-      "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.11",
+        "buildCommand": "bash build_files.sh"
+      }
     },
     {
       "src": "build_files.sh",
@@ -20,7 +24,6 @@
       "src": "/(.*)",
       "dest": "ecoride/wsgi.py"
     }
-  ],
-  "buildCommand": "bash vercel_build.sh"
+  ]
 }
   

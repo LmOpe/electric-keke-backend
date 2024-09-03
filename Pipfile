@@ -11,6 +11,7 @@ djangorestframework = "==3.15"
 djangorestframework-simplejwt = "==5.3.1"
 drf-yasg = "==1.21.7"
 setuptools = "*"
+whitenoise = "*"
 
 [dev-packages]
 
