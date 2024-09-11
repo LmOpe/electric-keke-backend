@@ -497,11 +497,15 @@ class LogoutView(APIView):
         """
         Blacklist the refresh token on logout.
         """
+        user = request.user
         try:
-            refresh_token = request.data.get('refresh')
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+            tokens = RefreshToken.objects.filter(user=user)
+            for token in tokens:
+                try:
+                    BlacklistedToken.objects.create(token=token)
+                except Exception as e:
+                    pass 
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_205_RESET_CONTENT)
         except TokenError:
             return Response({"detail": "Invalid token or token missing."}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -555,6 +559,27 @@ class DeleteAccountView(APIView):
                     pass 
             # Delete the user
             user.delete()
-            return Response({"detail": "Account deleted successfully."}, status=status.HTTP_200_OK)
+            return Response({"detail": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"detail": "Could not delete account."}, status=status.HTTP_400_BAD_REQUEST)
+
+class GetAuthUser(APIView):
+    """
+    View to retrieve the authenticated user's information.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """
+        Get function to retreive authenticated user's
+        information
+        """
+        user = request.user
+        user_data = {
+            'id': user.id,
+            'phone_number': user.phone,
+            'email': user.email,
+            'full_name': user.fullname,
+            'address': user.address,
+        }
+        return Response(user_data, status=status.HTTP_200_OK)
