@@ -10,12 +10,15 @@ from django.utils import timezone
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
+
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.exceptions import TokenError
+
 
 from ecoride.utils import send_otp_email
 
@@ -196,3 +199,114 @@ class ResetPasswordView(APIView):
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class LogoutView(APIView):
+    """
+    Logout user by blacklisting the refresh token
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Logout the user by blacklisting their refresh token.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['refresh'],
+            properties={
+                'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Refresh token')
+            },
+            example={
+                'refresh': 'refresh_token'
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="User successfully logged out",
+                examples={
+                    "application/json": {
+                        "detail": "Successfully logged out."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid or missing token",
+                examples={
+                    "application/json": {
+                        "detail": "Invalid token or token missing."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        """
+        Blacklist the refresh token on logout.
+        """
+        try:
+            refresh_token = request.data.get('refresh')
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        except TokenError:
+            return Response({"detail": "Invalid token or token missing."}, status=status.HTTP_400_BAD_REQUEST)
+        
+class DeleteAccountView(APIView):
+    """
+    Delete user account and blacklist all tokens
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Delete the user's account and blacklist all tokens associated with the account.",
+        responses={
+            200: openapi.Response(
+                description="Account successfully deleted",
+                examples={
+                    "application/json": {
+                        "detail": "Account deleted successfully."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid request",
+                examples={
+                    "application/json": {
+                        "detail": "Could not delete account."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        """
+        Delete the user's account and blacklist their tokens.
+        """
+        user = request.user
+        try:
+            # Blacklist all the user's tokens
+            tokens = RefreshToken.objects.filter(user=user)
+            for token in tokens:
+                try:
+                    BlacklistedToken.objects.create(token=token)
+                except Exception as e:
+                    pass 
+            # Delete the user
+            user.delete()
+            return Response({"detail": "Account deleted successfully."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": "Could not delete account."}, status=status.HTTP_400_BAD_REQUEST)
