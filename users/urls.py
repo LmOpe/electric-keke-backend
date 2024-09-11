@@ -3,7 +3,9 @@
 from django.urls import path
 
 from .views import RegisterView, ActivateUserView, RequestNewOTPView,\
-    CustomTokenObtainPairView, ResetPasswordView, CustomTokenRefreshView
+    CustomTokenObtainPairView, ResetPasswordView, GetAuthUser,\
+    LogoutView, DeleteAccountView, CustomTokenRefreshView
+
 
 urlpatterns = [
     path('register-user/', RegisterView.as_view(), name='register_user'),
@@ -12,4 +14,7 @@ urlpatterns = [
     path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
+    path('logout/', LogoutView.as_view(), name='logout'),
+    path('delete-account/', DeleteAccountView.as_view(), name='delete-account'),
+    path('auth-user/', GetAuthUser.as_view(), name='auth-user'),
 ]

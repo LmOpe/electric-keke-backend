@@ -10,12 +10,15 @@ from django.utils import timezone
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
+
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from rest_framework_simplejwt.exceptions import TokenError
+
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -139,6 +142,10 @@ class ActivateUserView(APIView):
         try:
             user = User.objects.get(id=user_id)
             otp_instance = OTP.objects.get(user=user)
+
+            if user.is_active:
+                return Response({'detail': 'User is already active.'},\
+                        status=status.HTTP_400_BAD_REQUEST)
 
             if otp_instance.otp == otp and otp_instance.is_valid():
                 user.is_active = True
@@ -292,7 +299,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         # Invalidate all tokens for the user before issuing a new one
         user = request.user
         if user.is_authenticated:
-            tokens = RefreshToken.objects.filter(user=user)
+            tokens = OutstandingToken.objects.filter(user=user)
             for token in tokens:
                 try:
                     BlacklistedToken.objects.create(token=token)
@@ -350,7 +357,7 @@ class CustomTokenRefreshView(TokenRefreshView):
         # Invalidate all tokens for the user before issuing a new one
         user = request.user
         if user.is_authenticated:
-            tokens = RefreshToken.objects.filter(user=user)
+            tokens = OutstandingToken.objects.filter(user=user)
             for token in tokens:
                 try:
                     BlacklistedToken.objects.create(token=token)
@@ -444,3 +451,152 @@ class ResetPasswordView(APIView):
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class LogoutView(APIView):
+    """
+    Logout user by blacklisting the refresh token
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Logout the user and expire their tokens.",
+        responses={
+            200: openapi.Response(
+                description="User successfully logged out",
+                examples={
+                    "application/json": {
+                        "detail": "Successfully logged out."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        """
+        Blacklist the refresh token on logout.
+        """
+        user = request.user
+        try:
+            tokens = OutstandingToken.objects.filter(user=user)
+            for token in tokens:
+                try:
+                    BlacklistedToken.objects.create(token=token)
+                except Exception as e:
+                    pass 
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_205_RESET_CONTENT)
+        except TokenError:
+            return Response({"detail": "Refresh field is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+class DeleteAccountView(APIView):
+    """
+    Delete user account and blacklist all tokens
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Delete the user's account and expire all tokens associated with the account.",
+        responses={
+            200: openapi.Response(
+                description="Account successfully deleted",
+                examples={
+                    "application/json": {
+                        "detail": "Account deleted successfully."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid request",
+                examples={
+                    "application/json": {
+                        "detail": "Could not delete account."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+
+    def delete(self, request, *args, **kwargs):
+        """
+        Delete the user's account and blacklist their tokens.
+        """
+        user = request.user
+        try:
+            # Blacklist all the user's tokens
+            tokens = OutstandingToken.objects.filter(user=user)
+            for token in tokens:
+                try:
+                    BlacklistedToken.objects.create(token=token)
+                except Exception as e:
+                    pass 
+            # Delete the user
+            user.delete()
+            return Response({"detail": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({"detail": "Could not delete account."}, status=status.HTTP_400_BAD_REQUEST)
+
+class GetAuthUser(APIView):
+    """
+    View to retrieve the authenticated user's information.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Retrieve information about the authenticated user.",
+        responses={
+            200: openapi.Response(
+                description="Authenticated user's information retrieved successfully",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "phone_number": "09012345678",
+                        "email": "user@example.com",
+                        "fullname": "John Doe",
+                        "address": "123 Main St",
+                        "state_of_residence": "Lagos",
+                        "role": "User"
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+    def get(self, request):
+        """
+        Get function to retreive authenticated user's
+        information
+        """
+        user = request.user
+        user_data = {
+            'id': user.id,
+            'phone_number': user.phone,
+            'email': user.email,
+            'fullname': user.fullname,
+            'address': user.address,
+            'state_of_residence': user.state_of_residence,
+            'role': user.role,
+            
+        }
+        return Response(user_data, status=status.HTTP_200_OK)

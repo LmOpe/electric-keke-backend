@@ -7,17 +7,18 @@
 from unittest.mock import patch
 from datetime import timedelta
 
-from django.core import mail
 from django.urls import reverse
 from django.utils import timezone
 
 from rest_framework.test import APITestCase
 from rest_framework import status
 
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .models import User, OTP
 
 class UserAuthenticationTests(APITestCase):
-    
+   
     def setUp(self):
         self.register_url = reverse('register_user')
         self.activate_user_url = reverse('activate_user')
@@ -25,7 +26,10 @@ class UserAuthenticationTests(APITestCase):
         self.token_obtain_url = reverse('token_obtain_pair')
         self.token_refresh_url = reverse('token_refresh')
         self.reset_password_url = reverse('reset_password')
-        
+        self.delete_account_url = reverse("delete-account")
+        self.get_auth_user_url = reverse("auth-user")
+        self.logout_url = reverse("logout")
+
         self.user_data = {
             'fullname': 'John Doe',
             'email': 'john@example.com',
@@ -49,6 +53,14 @@ class UserAuthenticationTests(APITestCase):
         )
         self.user.is_active = True
         self.user.save()
+
+        # JWT token for authenticated requests
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+
+    def authenticate_user(self):
+        """Helper method to set the authorization header for requests."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
 
     def test_register_user_success(self):
         response = self.client.post(self.register_url, self.user_data, format='json')
@@ -173,3 +185,26 @@ class UserAuthenticationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(OTP.objects.filter(user=self.user).exists())
         self.assertTrue(mock_send_otp_email.called)
+
+    
+    def test_get_authenticated_user(self):
+        """Test retrieving the authenticated user's information."""
+        self.authenticate_user()
+        response = self.client.get(self.get_auth_user_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], self.user.email)
+        self.assertEqual(response.data['fullname'], self.user.fullname)
+
+    def test_logout_success(self):
+        """Test that a user can log out and their tokens are blacklisted."""
+        self.authenticate_user()
+        response = self.client.post(self.logout_url)
+        self.assertEqual(response.status_code, status.HTTP_205_RESET_CONTENT)
+        self.assertIn('Successfully logged out', response.data['detail'])
+
+    def test_delete_account_success(self):
+        """Test that a user can delete their account."""
+        self.authenticate_user()
+        response = self.client.delete(self.delete_account_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(User.objects.filter(id=self.user.id).exists())
