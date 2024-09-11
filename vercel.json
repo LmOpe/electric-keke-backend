@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "ecoride/wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.11",
+        "buildCommand": "bash build_files.sh"
+      }
+    },
+    {
+      "src": "build_files.sh",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/staticfiles/(.*)",
+      "dest": "/staticfiles/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "ecoride/wsgi.py"
+    }
+  ]
+}
+  
