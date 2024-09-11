@@ -26,7 +26,10 @@ class UserAuthenticationTests(APITestCase):
         self.token_obtain_url = reverse('token_obtain_pair')
         self.token_refresh_url = reverse('token_refresh')
         self.reset_password_url = reverse('reset_password')
-        
+        self.delete_account_url = reverse("delete-account")
+        self.get_auth_user_url = reverse("auth-user")
+        self.logout_url = reverse("logout")
+
         self.user_data = {
             'fullname': 'John Doe',
             'email': 'john@example.com',
@@ -55,9 +58,9 @@ class UserAuthenticationTests(APITestCase):
         self.refresh = RefreshToken.for_user(self.user)
         self.access_token = str(self.refresh.access_token)
 
-        def authenticate_user(self):
-            """Helper method to set the authorization header for requests."""
-            self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+    def authenticate_user(self):
+        """Helper method to set the authorization header for requests."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
 
     def test_register_user_success(self):
         response = self.client.post(self.register_url, self.user_data, format='json')
@@ -195,9 +198,9 @@ class UserAuthenticationTests(APITestCase):
     def test_logout_success(self):
         """Test that a user can log out and their tokens are blacklisted."""
         self.authenticate_user()
-        response = self.client.post(self.logout_url, {'refresh': str(self.refresh)}, format='json')
+        response = self.client.post(self.logout_url)
         self.assertEqual(response.status_code, status.HTTP_205_RESET_CONTENT)
-        self.assertIn('Token has been blacklisted', response.data['detail'])
+        self.assertIn('Successfully logged out', response.data['detail'])
 
     def test_delete_account_success(self):
         """Test that a user can delete their account."""

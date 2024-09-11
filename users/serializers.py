@@ -37,6 +37,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('re_password', None)  # Remove re_password before creating the user
+        validated_data.pop('message_type', None)  # Remove message_type before creating the user
         user = User.objects.create_user(**validated_data)
         return user
 

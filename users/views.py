@@ -16,7 +16,7 @@ from rest_framework import status
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.exceptions import TokenError
 
 
@@ -142,6 +142,10 @@ class ActivateUserView(APIView):
         try:
             user = User.objects.get(id=user_id)
             otp_instance = OTP.objects.get(user=user)
+
+            if user.is_active:
+                return Response({'detail': 'User is already active.'},\
+                        status=status.HTTP_400_BAD_REQUEST)
 
             if otp_instance.otp == otp and otp_instance.is_valid():
                 user.is_active = True
@@ -295,7 +299,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         # Invalidate all tokens for the user before issuing a new one
         user = request.user
         if user.is_authenticated:
-            tokens = RefreshToken.objects.filter(user=user)
+            tokens = OutstandingToken.objects.filter(user=user)
             for token in tokens:
                 try:
                     BlacklistedToken.objects.create(token=token)
@@ -353,7 +357,7 @@ class CustomTokenRefreshView(TokenRefreshView):
         # Invalidate all tokens for the user before issuing a new one
         user = request.user
         if user.is_authenticated:
-            tokens = RefreshToken.objects.filter(user=user)
+            tokens = OutstandingToken.objects.filter(user=user)
             for token in tokens:
                 try:
                     BlacklistedToken.objects.create(token=token)
@@ -454,52 +458,13 @@ class LogoutView(APIView):
     """
     permission_classes = (IsAuthenticated,)
 
-    @swagger_auto_schema(
-        operation_description="Logout the user by blacklisting their refresh token.",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=['refresh'],
-            properties={
-                'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Refresh token')
-            },
-            example={
-                'refresh': 'refresh_token'
-            }
-        ),
-        responses={
-            200: openapi.Response(
-                description="User successfully logged out",
-                examples={
-                    "application/json": {
-                        "detail": "Successfully logged out."
-                    }
-                }
-            ),
-            400: openapi.Response(
-                description="Invalid or missing token",
-                examples={
-                    "application/json": {
-                        "detail": "Invalid token or token missing."
-                    }
-                }
-            ),
-            401: openapi.Response(
-                description="Unauthorized request",
-                examples={
-                    "application/json": {
-                        "detail": "Authentication credentials were not provided."
-                    }
-                }
-            )
-        }
-    )
     def post(self, request, *args, **kwargs):
         """
         Blacklist the refresh token on logout.
         """
         user = request.user
         try:
-            tokens = RefreshToken.objects.filter(user=user)
+            tokens = OutstandingToken.objects.filter(user=user)
             for token in tokens:
                 try:
                     BlacklistedToken.objects.create(token=token)
@@ -507,7 +472,7 @@ class LogoutView(APIView):
                     pass 
             return Response({"detail": "Successfully logged out."}, status=status.HTTP_205_RESET_CONTENT)
         except TokenError:
-            return Response({"detail": "Invalid token or token missing."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Refresh field is required."}, status=status.HTTP_400_BAD_REQUEST)
         
 class DeleteAccountView(APIView):
     """
@@ -515,35 +480,6 @@ class DeleteAccountView(APIView):
     """
     permission_classes = (IsAuthenticated,)
 
-    @swagger_auto_schema(
-        operation_description="Delete the user's account and blacklist all tokens associated with the account.",
-        responses={
-            200: openapi.Response(
-                description="Account successfully deleted",
-                examples={
-                    "application/json": {
-                        "detail": "Account deleted successfully."
-                    }
-                }
-            ),
-            400: openapi.Response(
-                description="Invalid request",
-                examples={
-                    "application/json": {
-                        "detail": "Could not delete account."
-                    }
-                }
-            ),
-            401: openapi.Response(
-                description="Unauthorized request",
-                examples={
-                    "application/json": {
-                        "detail": "Authentication credentials were not provided."
-                    }
-                }
-            )
-        }
-    )
     def delete(self, request, *args, **kwargs):
         """
         Delete the user's account and blacklist their tokens.
@@ -551,7 +487,7 @@ class DeleteAccountView(APIView):
         user = request.user
         try:
             # Blacklist all the user's tokens
-            tokens = RefreshToken.objects.filter(user=user)
+            tokens = OutstandingToken.objects.filter(user=user)
             for token in tokens:
                 try:
                     BlacklistedToken.objects.create(token=token)
@@ -579,7 +515,10 @@ class GetAuthUser(APIView):
             'id': user.id,
             'phone_number': user.phone,
             'email': user.email,
-            'full_name': user.fullname,
+            'fullname': user.fullname,
             'address': user.address,
+            'state_of_residence': user.state_of_residence,
+            'role': user.role,
+            
         }
         return Response(user_data, status=status.HTTP_200_OK)
