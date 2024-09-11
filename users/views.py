@@ -458,6 +458,27 @@ class LogoutView(APIView):
     """
     permission_classes = (IsAuthenticated,)
 
+    @swagger_auto_schema(
+        operation_description="Logout the user and expire their tokens.",
+        responses={
+            200: openapi.Response(
+                description="User successfully logged out",
+                examples={
+                    "application/json": {
+                        "detail": "Successfully logged out."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
     def post(self, request, *args, **kwargs):
         """
         Blacklist the refresh token on logout.
@@ -479,6 +500,36 @@ class DeleteAccountView(APIView):
     Delete user account and blacklist all tokens
     """
     permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Delete the user's account and expire all tokens associated with the account.",
+        responses={
+            200: openapi.Response(
+                description="Account successfully deleted",
+                examples={
+                    "application/json": {
+                        "detail": "Account deleted successfully."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid request",
+                examples={
+                    "application/json": {
+                        "detail": "Could not delete account."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
 
     def delete(self, request, *args, **kwargs):
         """
@@ -505,6 +556,33 @@ class GetAuthUser(APIView):
     """
     permission_classes = (IsAuthenticated,)
 
+    @swagger_auto_schema(
+        operation_description="Retrieve information about the authenticated user.",
+        responses={
+            200: openapi.Response(
+                description="Authenticated user's information retrieved successfully",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "phone_number": "09012345678",
+                        "email": "user@example.com",
+                        "fullname": "John Doe",
+                        "address": "123 Main St",
+                        "state_of_residence": "Lagos",
+                        "role": "User"
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Unauthorized request",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
     def get(self, request):
         """
         Get function to retreive authenticated user's
