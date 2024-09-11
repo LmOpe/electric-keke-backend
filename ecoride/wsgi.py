@@ -11,6 +11,8 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecoride.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecoride.settings_prod' if os.getenv('DEBUG', 'False') == 'False' else 'ecoride.settings_local')
 
 application = get_wsgi_application()
+
+app = application

@@ -20,6 +20,9 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from rest_framework_simplejwt.exceptions import TokenError
 
 
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 from ecoride.utils import send_otp_email
 
 from .models import OTP, User
@@ -27,8 +30,35 @@ from .serializers import UserSerializer, CustomTokenObtainPairSerializer
 
 
 class RegisterView(APIView):
-    """User registration view"""
+    """User registration endpoint"""
     permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Register a new user",
+        request_body=UserSerializer,
+        responses={
+            status.HTTP_201_CREATED: openapi.Response(
+                description="User registered successfully",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "fullname": "John Doe",
+                        "address": "123 Street, City",
+                        "state_of_residence": "Kwara",
+                        "role": "user",
+                        "email": "john.doe@example.com",
+                        "phone": "+2341234567890"
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Bad request",
+                examples={
+                    "application/json": {"detail": "Error message"}
+                }
+            ),
+        }
+    )
 
     def post(self, request):
         """Method for registering new user on post requests"""
@@ -59,8 +89,46 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivateUserView(APIView):
-    """User activation with OTP verification view"""
+    """User activation with OTP verification endpoint"""
     permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Activate a user account by verifying the OTP",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['id', 'otp'],
+            properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='User ID'),
+                'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP sent to the user'),
+            },
+            example={
+                'id': 1,
+                'otp': '12345'
+            }
+        ),
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="OTP verified successfully, user activated.",
+                examples={
+                    "application/json": {
+                        "detail": "OTP verified successfully, user activated."
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Bad request - missing or invalid parameters",
+                examples={
+                    "application/json": {"detail": "Invalid or expired OTP."}
+                }
+            ),
+            status.HTTP_404_NOT_FOUND: openapi.Response(
+                description="User or OTP not found",
+                examples={
+                    "application/json": {"detail": "User not found."}
+                }
+            ),
+        }
+    )
 
     def post(self, request):
         """Method for verifying users OTP on post request post"""
@@ -91,6 +159,49 @@ class ActivateUserView(APIView):
 class RequestNewOTPView(APIView):
     """View for sending new OTP to user upon request"""
     permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Request a new OTP for user verification",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['message_type','username'],
+            properties={
+                'message_type': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    enum=['email', 'sms'],
+                    description='The type of message to send OTP. Defaults to email.'
+                ),
+                'username': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The email or phone number associated with the user.'
+                ),
+            },
+            example={
+                'message_type': 'email',
+                'username': 'user@example.com'
+            }
+        ),
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="New OTP sent.",
+                examples={
+                    "application/json": {"detail": "New OTP sent."}
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Bad request - missing or invalid parameters",
+                examples={
+                    "application/json": {"detail": "Both fields are required."}
+                }
+            ),
+            status.HTTP_404_NOT_FOUND: openapi.Response(
+                description="User or OTP not found",
+                examples={
+                    "application/json": {"detail": "User not found."}
+                }
+            ),
+        }
+    )
 
     def post(self, request):
         """Method for sending new OTP to user on post request"""
@@ -137,6 +248,49 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
     serializer_class = CustomTokenObtainPairSerializer
 
+    @swagger_auto_schema(
+        operation_description="Obtain JWT access and refresh tokens using valid credentials.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['username', 'password'],
+            properties={
+                'username': openapi.Schema(type=openapi.TYPE_STRING, description='Username (email or phone)'),
+                'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password')
+            },
+            example={
+                'username': 'user@example.com',
+                'password': 'password123'
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Access and refresh tokens obtained successfully",
+                examples={
+                    "application/json": {
+                        "refresh": "refresh_token",
+                        "access": "access_token"
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Missing or invalid fields",
+                examples={
+                    "application/json": {
+                        "detail": "Missing required fields"
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Invalid credentials",
+                examples={
+                    "application/json": {
+                        "detail": "No active account found with the given credentials"
+                    }
+                }
+            )
+        }
+    )
+
     def post(self, request, *args, **kwargs):
         # Invalidate all tokens for the user before issuing a new one
         user = request.user
@@ -154,6 +308,47 @@ class CustomTokenRefreshView(TokenRefreshView):
     """
     Custom token refresh view for blakclisting previous tokens
     """
+    @swagger_auto_schema(
+        operation_description="Refresh JWT access token using a valid refresh token.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['refresh'],
+            properties={
+                'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Refresh token')
+            },
+            example={
+                'refresh': 'refresh_token'
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="New access token obtained successfully",
+                examples={
+                    "application/json": {
+                        "access": "new_access_token"
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Missing required field",
+                examples={
+                    "application/json": {
+                        "detail": "This field is required."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Token is blacklisted",
+                examples={
+                    "application/json": {
+                        "detail": "Token is blacklisted",
+                        "code": "token_not_valid"
+                    }
+                }
+            )
+        }
+    )
+
     def post(self, request, *args, **kwargs):
         # Invalidate all tokens for the user before issuing a new one
         user = request.user
@@ -170,6 +365,59 @@ class CustomTokenRefreshView(TokenRefreshView):
 class ResetPasswordView(APIView):
     """View to reset the user's password after OTP verification"""
     permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Reset the user's password after OTP verification.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['username', 'password', 're_password'],
+            properties={
+                'username': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The username of the user, can be either email or phone.'
+                ),
+                'password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The new password for the account.'
+                ),
+                're_password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The confirmation of the new password.'
+                ),
+            },
+            example={
+                'username': 'johndoe@example.com',
+                'password': 'newpassword123',
+                're_password': 'newpassword123',
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Password has been reset successfully.",
+                examples={
+                    "application/json": {
+                        "detail": "Password has been reset successfully."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid input or missing required fields.",
+                examples={
+                    "application/json": {
+                        "detail": "Passwords do not match."
+                    }
+                }
+            ),
+            404: openapi.Response(
+                description="User not found.",
+                examples={
+                    "application/json": {
+                        "detail": "User not found."
+                    }
+                }
+            )
+        }
+    )
 
     def post(self, request):
         """Password resetting logic"""
