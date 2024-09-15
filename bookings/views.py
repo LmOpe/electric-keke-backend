@@ -25,6 +25,7 @@ class AvailableRidersListView(generics.ListAPIView):
 
     @swagger_auto_schema(
         operation_description="Get a list of online riders",
+        security=[{'Bearer': []}],
         responses={
             status.HTTP_200_OK: openapi.Response(
                 description="A list of available riders"
@@ -166,6 +167,7 @@ class BookingListView(generics.ListAPIView):
 
     @swagger_auto_schema(
         operation_description="Get list of bookings for the authenticated user",
+        security=[{'Bearer': []}],
         responses={
             status.HTTP_200_OK: openapi.Response(
                 description="List of bookings related to the authenticated user",
@@ -220,6 +222,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
     @swagger_auto_schema(
             operation_description="Update the status of a booking",
             request_body=BookingStatusUpdateSerializer,
+            security=[{'Bearer': []}],
             responses={
                 status.HTTP_200_OK: openapi.Response(
                     description="Status updated successfully",
