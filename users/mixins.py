@@ -12,13 +12,14 @@ class OTPVerificationMixin:
 
         try:
             user = User.objects.get(id=user_id)
+            print("User", user)
             otp_instance = OTP.objects.get(user=user)
 
             if otp_instance.otp == otp and otp_instance.is_valid():
                 return user, None  # OTP is valid, return user
             return None, Response({'detail': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        except User.DoesNotExist:
+        except Exception as exc:
             return None, Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         except OTP.DoesNotExist:
             return None, Response({'detail': 'OTP not found.'}, status=status.HTTP_404_NOT_FOUND)
