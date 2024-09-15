@@ -15,7 +15,6 @@ from rest_framework import status
 
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.exceptions import TokenError
 
@@ -27,7 +26,7 @@ from ecoride.utils import send_otp_email
 
 from .models import OTP, User
 from .serializers import UserSerializer, CustomTokenObtainPairSerializer
-
+from .mixins import OTPVerificationMixin
 
 class RegisterView(APIView):
     """User registration endpoint"""
@@ -88,12 +87,12 @@ class RegisterView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ActivateUserView(APIView):
-    """User activation with OTP verification endpoint"""
+class ActivateUserView(APIView, OTPVerificationMixin):
+    """Activate user account after verifying the OTP."""
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        operation_description="Activate a user account by verifying the OTP",
+        operation_description="Activate a user account by verifying the OTP.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             required=['id', 'otp'],
@@ -101,64 +100,60 @@ class ActivateUserView(APIView):
                 'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='User ID'),
                 'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP sent to the user'),
             },
-            example={
-                'id': 1,
-                'otp': '12345'
-            }
+            example={'id': 1, 'otp': '12345'}
         ),
         responses={
-            status.HTTP_200_OK: openapi.Response(
-                description="OTP verified successfully, user activated.",
-                examples={
-                    "application/json": {
-                        "detail": "OTP verified successfully, user activated."
-                    }
-                }
-            ),
-            status.HTTP_400_BAD_REQUEST: openapi.Response(
-                description="Bad request - missing or invalid parameters",
-                examples={
-                    "application/json": {"detail": "Invalid or expired OTP."}
-                }
-            ),
-            status.HTTP_404_NOT_FOUND: openapi.Response(
-                description="User or OTP not found",
-                examples={
-                    "application/json": {"detail": "User not found."}
-                }
-            ),
+            status.HTTP_200_OK: openapi.Response(description="User activated successfully."),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(description="Invalid or expired OTP."),
+            status.HTTP_404_NOT_FOUND: openapi.Response(description="User or OTP not found."),
         }
     )
-
     def post(self, request):
-        """Method for verifying users OTP on post request post"""
         user_id = request.data.get('id')
         otp = request.data.get('otp')
 
-        if not user_id or not otp:
-            return Response({'detail': 'User id and OTP are required.'},\
-                            status=status.HTTP_400_BAD_REQUEST)
+        user, error_response = self.verify_otp(user_id, otp)
+        if error_response:
+            return error_response
 
-        try:
-            user = User.objects.get(id=user_id)
-            otp_instance = OTP.objects.get(user=user)
+        if user.is_active:
+            return Response({'detail': 'User is already active.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if user.is_active:
-                return Response({'detail': 'User is already active.'},\
-                        status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = True
+        user.save()
+        return Response({'detail': 'User activated successfully.'}, status=status.HTTP_200_OK)
 
-            if otp_instance.otp == otp and otp_instance.is_valid():
-                user.is_active = True
-                user.save()
-                return Response({'detail': 'OTP verified successfully, user activated.'},\
-                                status=status.HTTP_200_OK)
-            return Response({'detail': 'Invalid or expired OTP.'},\
-                            status=status.HTTP_400_BAD_REQUEST)
+class VerifyOTPView(APIView, OTPVerificationMixin):
+    """Check if OTP is valid without activating user"""
+    permission_classes = [AllowAny]
 
-        except User.DoesNotExist:
-            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
-        except OTP.DoesNotExist:
-            return Response({'detail': 'OTP not found.'}, status=status.HTTP_404_NOT_FOUND)
+    @swagger_auto_schema(
+        operation_description="Check if the provided OTP is valid.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['id', 'otp'],
+            properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='User ID'),
+                'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP sent to the user'),
+            },
+            example={'id': 1, 'otp': '12345'}
+        ),
+        responses={
+            status.HTTP_200_OK: openapi.Response(description="OTP verified successfully."),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(description="Invalid or expired OTP."),
+            status.HTTP_404_NOT_FOUND: openapi.Response(description="User or OTP not found."),
+        }
+    )
+    def post(self, request):
+        user_id = request.data.get('id')
+        otp = request.data.get('otp')
+
+        user, error_response = self.verify_otp(user_id, otp)
+        if error_response:
+            return error_response
+
+        return Response({'detail': 'OTP verified successfully.'}, status=status.HTTP_200_OK)
+
 
 class RequestNewOTPView(APIView):
     """View for sending new OTP to user upon request"""
