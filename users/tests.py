@@ -22,12 +22,13 @@ class UserAuthenticationTests(APITestCase):
     def setUp(self):
         self.register_url = reverse('register_user')
         self.activate_user_url = reverse('activate_user')
+        self.otp_verification_url = reverse('verify_otp')
         self.request_new_otp_url = reverse('request_new_otp')
         self.token_obtain_url = reverse('token_obtain_pair')
         self.token_refresh_url = reverse('token_refresh')
         self.reset_password_url = reverse('reset_password')
-        self.delete_account_url = reverse("delete-account")
-        self.get_auth_user_url = reverse("auth-user")
+        self.delete_account_url = reverse("delete_account")
+        self.get_auth_user_url = reverse("auth_user")
         self.logout_url = reverse("logout")
 
         self.user_data = {
@@ -83,6 +84,27 @@ class UserAuthenticationTests(APITestCase):
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_active)
 
+    def test_activate_user_missing_otp_field(self):
+        """
+        Test activating a user with mising OTP field.
+        """
+
+        response = self.client.post(self.activate_user_url, {'id': self.user.id}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'User id and OTP are required.')
+    
+    def test_activate_user_already_active(self):
+        """
+        Test activating a user who is already active.
+        """
+
+        OTP.objects.create(user=self.user, otp='12345', expires_at=timezone.now() + timedelta(minutes=5))
+        response = self.client.post(self.activate_user_url, {'id': self.user.id, 'otp':'12345'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'User is already active.')
+
     def test_activate_user_success(self):
         self.user.is_active = False
         self.user.save()
@@ -101,6 +123,45 @@ class UserAuthenticationTests(APITestCase):
     def test_request_new_otp_user_not_found(self):
         response = self.client.post(self.request_new_otp_url, {'username': 'nonexistent@example.com', 'message_type': 'email'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_verify_otp_success(self):
+        """
+        Test successfully verifying the OTP.
+        """
+        OTP.objects.create(user=self.user, otp='12345', expires_at=timezone.now() + timedelta(minutes=5))
+        response = self.client.post(self.otp_verification_url, {'id': self.user.id, 'otp': '12345'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['detail'], 'OTP verified successfully.')
+
+    def test_verify_otp_invalid(self):
+        """
+        Test verification with an invalid OTP.
+        """
+        OTP.objects.create(user=self.user, otp='12345', expires_at=timezone.now() + timedelta(minutes=5))
+        response = self.client.post(self.otp_verification_url, {'id': self.user.id, 'otp': '54321'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'Invalid or expired OTP.')
+
+    def test_verify_otp_expired(self):
+        """
+        Test verification with an expired OTP.
+        """
+        OTP.objects.create(user=self.user, otp='12345', expires_at=timezone.now() - timedelta(minutes=1))  # Expired OTP
+        response = self.client.post(self.otp_verification_url, {'id': self.user.id, 'otp': '12345'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'Invalid or expired OTP.')
+
+    def test_verify_otp_user_not_found(self):
+        """
+        Test verification with a non-existing user.
+        """
+        response = self.client.post(self.otp_verification_url, {'id': 999, 'otp': '12345'}, format='json')  # Non-existing user
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data['detail'], 'User not found.')
 
     def test_custom_token_obtain_pair_success(self):
         response = self.client.post(self.token_obtain_url, {'username': self.user.email, 'password': 'password123'}, format='json')
