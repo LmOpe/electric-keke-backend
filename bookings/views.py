@@ -1,0 +1,330 @@
+"""
+Bookings related views
+"""
+# pylint: disable=no-member
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
+from users.models import User
+from users.permissions import IsUser
+
+from .models import Booking
+from .serializers import BookingSerializer, BookingCreateSerializer, BookingStatusUpdateSerializer
+from .serializers import RiderSerializer
+
+class AvailableRidersListView(generics.ListAPIView):
+    """
+    View for getting list of online riders
+    """
+    permission_classes = (IsAuthenticated, IsUser,)
+    serializer_class = RiderSerializer
+
+    @swagger_auto_schema(
+        operation_description="Get a list of online riders",
+        security=[{'Bearer': []}],
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="A list of available riders"
+                            "Only users with the 'User' role can hit this endpoint.",
+                examples={
+                    "application/json": [
+                        {
+                            "id": 1,
+                            "fullname": "Jane Doe",
+                            "email": "jane.doe@example.com",
+                            "phone": "+2341234567890",
+                            "address": "123 Street, City",
+                            "state_of_residence": "Kwara"
+                        },
+                        {
+                            "id": 2,
+                            "fullname": "John Smith",
+                            "email": "john.smith@example.com",
+                            "phone": "+2349876543210",
+                            "address": "456 Avenue, City",
+                            "state_of_residence": "Lagos"
+                        }
+                    ]
+                }
+            ),
+            status.HTTP_401_UNAUTHORIZED: openapi.Response(
+                description="Unauthorized",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            ),
+        }
+    )
+
+    def get_queryset(self):
+        # Assuming `is_active` is used to determine if a rider is available
+        return User.objects.filter(is_active=True, role='Rider')
+
+# Create a new booking (either ride or delivery)
+class BookingCreateView(generics.CreateAPIView):
+    """
+    View for creating new ride or delivery bookings
+    """
+    serializer_class = BookingCreateSerializer
+    permission_classes = [IsAuthenticated, IsUser]
+
+    @swagger_auto_schema(
+        operation_description="Create a new ride or delivery booking. "
+                              "Only users with the 'User' role can hit this endpoint.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['rider', 'booking_type', 'origin', 'destination', 'price'],
+            properties={
+                'rider': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Email address of the rider',
+                    example='rider@mail.com'
+                ),
+                'booking_type': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Type of the booking, e.g., 'ride' or 'delivery'",
+                    example='ride'
+                ),
+                'origin': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Pickup location of the booking',
+                    example='123 Street, City'
+                ),
+                'destination': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Drop-off location of the booking',
+                    example='456 Avenue, City'
+                ),
+                'price': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Price of the booking',
+                    example='1500.00'
+                ),
+                'package_details': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Details about the package (optional for deliveries)',
+                    example='Fragile item',
+                    nullable=True
+                ),
+            }
+        ),
+        security=[{'Bearer': []}],
+        responses={
+            status.HTTP_201_CREATED: openapi.Response(
+                description="Booking created successfully",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "booking_type": "ride",
+                        "origin": "123 Street, City",
+                        "destination": "456 Avenue, City",
+                        "price": "1500.00",
+                        "package_details": "Fragile item",
+                        "status": "pending"
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Bad request due to validation errors",
+                examples={
+                    "application/json": {
+                        "rider": "No rider found with the provided email."
+                    }
+                }
+            ),
+            status.HTTP_401_UNAUTHORIZED: openapi.Response(
+                description="Authentication required or invalid token",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        """
+        Handles the creation of a new booking.
+        
+        Possible scenarios:
+        - **201 Created**: Successfully creates a new ride or delivery booking.
+        - **400 Bad Request**: Invalid data provided, such as incorrect rider email or missing fields.
+        - **401 Unauthorized**: Authentication credentials are missing or invalid.
+        """
+        return super().post(request, *args, **kwargs)
+
+class BookingListView(generics.ListAPIView):
+    """
+    View for getting list of bookings
+    """
+    serializer_class = BookingSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Get list of bookings for the authenticated user",
+        security=[{'Bearer': []}],
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="List of bookings related to the authenticated user",
+                examples={
+                    "application/json": [
+                        {
+                            "id": 1,
+                            "user": 1,
+                            "rider": 2,
+                            "booking_type": "ride",
+                            "origin": "123 Main Street",
+                            "destination": "456 Elm Street",
+                            "price": 10.50,
+                            "status": "pending",
+                            "created_at": "2024-09-13T12:00:00Z",
+                            "updated_at": "2024-09-13T12:00:00Z",
+                            "package_details": None,
+                            "is_disputed": False,
+                            "dispute_status": None,
+                            "dispute_reason": None,
+                            "dispute_resolution": None
+                        }
+                    ]
+                }
+            ),
+            status.HTTP_401_UNAUTHORIZED: openapi.Response(
+                description="Unauthorized",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            ),
+        }
+    )
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'Rider':
+            return Booking.objects.filter(rider=user)
+        if user.role == 'User':
+            return Booking.objects.filter(user=user)
+        return Booking.objects.all()
+
+class BookingStatusUpdateView(generics.UpdateAPIView):
+    """
+    View for handling booking status update
+    """
+    serializer_class = BookingStatusUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+            operation_description="Update the status of a booking",
+            request_body=BookingStatusUpdateSerializer,
+            security=[{'Bearer': []}],
+            responses={
+                status.HTTP_200_OK: openapi.Response(
+                    description="Status updated successfully",
+                    examples={
+                        "application/json": {
+                            "detail": "Booking accepted successfully."
+                        }
+                    }
+                ),
+                status.HTTP_400_BAD_REQUEST: openapi.Response(
+                    description="Invalid status update or unauthorized action",
+                    examples={
+                        "application/json": {
+                            "detail": "You can only update status to cancelled or completed."
+                        }
+                    }
+                ),
+                status.HTTP_401_UNAUTHORIZED: openapi.Response(
+                    description="Unauthorized",
+                    examples={
+                        "application/json": {
+                            "detail": "Authentication credentials were not provided."
+                        }
+                    }
+                ),
+                status.HTTP_404_NOT_FOUND: openapi.Response(
+                    description="Booking not found",
+                    examples={
+                        "application/json": {
+                            "detail": "Booking not found."
+                        }
+                    }
+                ),
+            }
+        )
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'Rider':
+            return Booking.objects.filter(rider=user)
+        if user.role == 'User':
+            return Booking.objects.filter(user=user)
+
+    def update(self, request, *args, **kwargs):
+        booking = self.get_object()
+        user = request.user
+        new_status = request.data.get('status')
+
+        if user.role == 'User':
+            if new_status not in ['cancelled', 'completed']:
+                return Response({'detail': 'You can only update status to cancelled or completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if booking.status == 'completed' and booking.status == "completed":
+                # Handle payment confirmation for the rider
+                return Response({'detail': 'Booking completion confirmed successfully.'}, status=status.HTTP_200_OK)
+
+            if new_status == 'cancelled' and booking.status in ['accepted', 'in_progress', 'pending']:
+                # Handle cancellation and notification
+                # Notify rider about the cancellation
+                # Handle refund if required
+                booking.status = 'cancelled'
+                booking.save()
+                return Response({'detail': 'Booking cancelled successfully.'}, status=status.HTTP_200_OK)
+
+            if new_status == 'completed' and booking.status == 'in_progress':
+                # Handle payment completion and notifications
+                # Mark the booking as completed
+                booking.status = 'completed'
+                booking.save()
+                return Response({'detail': 'Booking completed successfully.'}, status=status.HTTP_200_OK)
+
+        if user.role == 'Rider':
+            if new_status not in ['accepted', 'in_progress', 'cancelled', 'completed']:
+                return Response({'detail': 'You can only update status to accepted, in_progress, cancelled or completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if booking.status == 'completed':
+                return Response({'detail': 'This booking has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if new_status == 'accepted' and booking.status == 'pending':
+                # Notify the user that the rider accepted the booking
+                booking.status = 'accepted'
+                booking.save()
+                return Response({'detail': 'Booking accepted successfully.'}, status=status.HTTP_200_OK)
+
+            if new_status == 'in_progress' and booking.status == 'accepted':
+                # Notify user that the ride has started
+                booking.status = 'in_progress'
+                booking.save()
+                return Response({'detail': 'Booking is now in progress.'}, status=status.HTTP_200_OK)
+
+            if new_status == 'completed' and booking.status == 'in_progress':
+                # Mark booking as completed
+                booking.status = 'completed'
+                booking.save()
+                return Response({'detail': 'Booking completed successfully.'}, status=status.HTTP_200_OK)
+
+            if new_status == 'cancelled':
+                # Handle cancellation by rider
+                # Notify user about the cancellation
+                booking.status = 'cancelled'
+                booking.save()
+                return Response({'detail': 'Booking cancelled by rider.'}, status=status.HTTP_200_OK)
+
+        return Response({'detail': 'Invalid status update.'}, status=status.HTTP_400_BAD_REQUEST)
