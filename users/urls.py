@@ -16,6 +16,6 @@ urlpatterns = [
     path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('delete-account/', DeleteAccountView.as_view(), name='delete_account'),
-    path('otp-verification', VerifyOTPView.as_view(), name='Verify_OTP'),
+    path('otp-verification', VerifyOTPView.as_view(), name='verify_otp'),
     path('auth-user/', GetAuthUser.as_view(), name='auth_user'),
 ]

@@ -1,3 +1,5 @@
+# pylint: disable=no-member
+
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -6,7 +8,7 @@ from .models import User, OTP
 class OTPVerificationMixin:
     def verify_otp(self, user_id, otp):
         if not user_id or not otp:
-            return Response({'detail': 'User id and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return None, Response({'detail': 'User id and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = User.objects.get(id=user_id)
