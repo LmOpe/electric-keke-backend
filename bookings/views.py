@@ -157,6 +157,7 @@ class BookingCreateView(generics.CreateAPIView):
         - **400 Bad Request**: Invalid data provided, such as incorrect rider email or missing fields.
         - **401 Unauthorized**: Authentication credentials are missing or invalid.
         """
+        return super().post(request, *args, **kwargs)
 
 class BookingListView(generics.ListAPIView):
     """
