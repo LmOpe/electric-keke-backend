@@ -184,7 +184,7 @@ class RequestNewOTPView(APIView):
             status.HTTP_200_OK: openapi.Response(
                 description="New OTP sent.",
                 examples={
-                    "application/json": {"detail": "New OTP sent."}
+                    "application/json": {"detail": "New OTP sent.", "user_id": 3}
                 }
             ),
             status.HTTP_400_BAD_REQUEST: openapi.Response(
@@ -233,7 +233,7 @@ class RequestNewOTPView(APIView):
                 return Response({'detail': 'SMS not available in development'},\
                                 status=status.HTTP_404_NOT_FOUND)
 
-            return Response({'detail': 'New OTP sent.'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'New OTP sent.', "user_id": user.id}, status=status.HTTP_200_OK)
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
