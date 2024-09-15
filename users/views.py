@@ -97,7 +97,7 @@ class ActivateUserView(APIView, OTPVerificationMixin):
             type=openapi.TYPE_OBJECT,
             required=['id', 'otp'],
             properties={
-                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='User ID'),
+                'id': openapi.Schema(type=openapi.TYPE_STRING, description='User ID'),
                 'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP sent to the user'),
             },
             example={'id': 1, 'otp': '12345'}
@@ -133,7 +133,7 @@ class VerifyOTPView(APIView, OTPVerificationMixin):
             type=openapi.TYPE_OBJECT,
             required=['id', 'otp'],
             properties={
-                'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='User ID'),
+                'id': openapi.Schema(type=openapi.TYPE_STRING, description='User ID'),
                 'otp': openapi.Schema(type=openapi.TYPE_STRING, description='OTP sent to the user'),
             },
             example={'id': 1, 'otp': '12345'}
