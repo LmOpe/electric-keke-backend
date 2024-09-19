@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'users',
     'bookings',
+    'admins'
 ]
 
 MIDDLEWARE = [
@@ -205,3 +206,5 @@ SWAGGER_SETTINGS = {
     },
     'USE_SESSION_AUTH': False,
 }
+
+BASE_URL = os.getenv("BASE_URL")

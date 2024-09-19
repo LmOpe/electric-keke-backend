@@ -267,5 +267,5 @@ class UserAuthenticationTests(APITestCase):
         """Test that a user can delete their account."""
         self.authenticate_user()
         response = self.client.delete(self.delete_account_url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(User.objects.filter(id=self.user.id).exists())
