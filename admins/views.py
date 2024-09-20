@@ -157,6 +157,45 @@ class EarningsListView(ListAPIView):
     """
     permission_classes = [IsAuthenticated, IsAdminUser]
     
+    @swagger_auto_schema(
+        operation_summary="List all earnings with filters",
+        operation_description="Returns a list of earnings. You can filter by date range, booking type (ride/delivery), or search for earnings on a specific date. Accessible only to admins.",
+        manual_parameters=[
+            openapi.Parameter('date', openapi.IN_QUERY, description="Search for earnings on a specific date (dd/mm/yyyy)", type=openapi.TYPE_STRING),
+            openapi.Parameter('date_from', openapi.IN_QUERY, description="Filter earnings from this date (dd/mm/yyyy)", type=openapi.TYPE_STRING),
+            openapi.Parameter('date_to', openapi.IN_QUERY, description="Filter earnings up to this date (dd/mm/yyyy)", type=openapi.TYPE_STRING),
+            openapi.Parameter('type', openapi.IN_QUERY, description="Filter by booking type (ride/delivery)", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response(
+                description="List of earnings",
+                examples={
+                    "application/json": [
+                        {
+                            "transaction_no": 1,
+                            "status": "completed",
+                            "rider_fullname": "John Doe",
+                            "rider_email": "john@example.com",
+                            "date": "19/09/2024",
+                            "amount": 500.00
+                        },
+                        {
+                            "transaction_no": 2,
+                            "status": "completed",
+                            "rider_fullname": "Jane Smith",
+                            "rider_email": "jane@example.com",
+                            "date": "18/09/2024",
+                            "amount": 350.00
+                        }
+                    ]
+                }
+            ),
+            400: "Invalid date format",
+            403: "Forbidden. Only accessible by admins.",
+            401: "Unauthorized. User not authenticated.",
+        },
+    )
+
     def get(self, request, *args, **kwargs):
         # Get query parameters
         date = request.GET.get('date')  # For exact search on a single date
