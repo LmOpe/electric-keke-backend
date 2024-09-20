@@ -141,7 +141,7 @@ class UserListView(ListAPIView):
                 'fullname': user.fullname,
                 'email': user.email,
                 'phone': user.phone,
-                'status': user.is_active,
+                'status': "active" if user.is_active else "inactive",
                 'id': user.id,
                 'role': user.role,
                 'signup_date': user.created_at.strftime('%d/%m/%Y')
