@@ -45,7 +45,7 @@ class DashboardOverview(APIView):
             401: "Unauthorized. User not authenticated.",
         },
     )
-    
+
     def get(self, request, *args, **kwargs):
         # Users related data
         total_users = User.objects.count()
@@ -79,6 +79,43 @@ class UserListView(ListAPIView):
     """
     permission_classes = [IsAuthenticated, IsAdminUser]
     
+    @swagger_auto_schema(
+        operation_summary="List all users with filters",
+        operation_description="Returns a list of users. You can filter users by status (active/inactive) and signup date. Accessible only to admins.",
+        manual_parameters=[
+            openapi.Parameter('status', openapi.IN_QUERY, description="Filter by user status (active/inactive)", type=openapi.TYPE_STRING),
+            openapi.Parameter('signup_date', openapi.IN_QUERY, description="Filter by signup date (dd/mm/yyyy)", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response(
+                description="List of users",
+                examples={
+                    "application/json": [
+                        {
+                            "fullname": "John Doe",
+                            "email": "john@example.com",
+                            "phone": "1234567890",
+                            "status": "active",
+                            "id": 1,
+                            "signup_date": "19/09/2024"
+                        },
+                        {
+                            "fullname": "Jane Smith",
+                            "email": "jane@example.com",
+                            "phone": "9876543210",
+                            "status": "inactive",
+                            "id": 2,
+                            "signup_date": "15/08/2023"
+                        }
+                    ]
+                }
+            ),
+            400: "Invalid date format",
+            403: "Forbidden. Only accessible by admins.",
+            401: "Unauthorized. User not authenticated.",
+        },
+    )
+
     def get(self, request, *args, **kwargs):
         # Get query parameters
         status = request.GET.get('status')
