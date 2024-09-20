@@ -10,6 +10,7 @@ from django.db.models import Sum
 
 from bookings.models import Booking
 
+from .serializers import EarningsSerializer
 
 User = get_user_model()
 
@@ -50,6 +51,7 @@ class UserListView(ListAPIView):
     View to retrieve a list of users with filtering options.
     Allows filtering by signup date and status.
     """
+    permission_classes = [IsAuthenticated, IsAdminUser]
     
     def get(self, request, *args, **kwargs):
         # Get query parameters
@@ -84,3 +86,52 @@ class UserListView(ListAPIView):
             for user in queryset
         ]
         return Response(users)
+
+class EarningsListView(ListAPIView):
+    """
+    View to retrieve and filter earnings based on date and type (ride/delivery).
+    Also allows searching for earnings on a specific date.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def get(self, request, *args, **kwargs):
+        # Get query parameters
+        date = request.GET.get('date')  # For exact search on a single date
+        date_from = request.GET.get('date_from')  # For filtering from this date
+        date_to = request.GET.get('date_to')  # For filtering up to this date
+        booking_type = request.GET.get('type')  # Filter by ride/delivery type
+        
+        # Base queryset
+        queryset = Booking.objects.all()
+        
+        # Exact search by date (formatted as dd/mm/yyyy)
+        if date:
+            try:
+                day, month, year = map(int, date.split('/'))
+                queryset = queryset.filter(created_at__date=f'{year}-{month:02d}-{day:02d}')
+            except ValueError:
+                return Response({"error": "Invalid date format, use dd/mm/yyyy"}, status=400)
+            except Exception:
+                return Response({"error": "Invalid date format, use dd/mm/yyyy"}, status=400)
+        
+        # Filter by date range if provided (formatted as dd/mm/yyyy)
+        if date_from and date_to:
+            try:
+                day_from, month_from, year_from = map(int, date_from.split('/'))
+                day_to, month_to, year_to = map(int, date_to.split('/'))
+                queryset = queryset.filter(
+                    created_at__date__gte=f'{year_from}-{month_from:02d}-{day_from:02d}',
+                    created_at__date__lte=f'{year_to}-{month_to:02d}-{day_to:02d}'
+                )
+            except ValueError:
+                return Response({"error": "Invalid date format for filtering, use dd/mm/yyyy"}, status=400)
+            except Exception:
+                return Response({"error": "Invalid date format for filtering, use dd/mm/yyyy"}, status=400)
+
+        # Filter by booking type if provided
+        if booking_type:
+            queryset = queryset.filter(booking_type=booking_type)
+
+        # Prepare response data using serializer
+        serializer = EarningsSerializer(queryset, many=True)
+        return Response(serializer.data)
