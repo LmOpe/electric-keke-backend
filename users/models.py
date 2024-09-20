@@ -29,8 +29,6 @@ class UserManager(BaseUserManager):
             raise TypeError('User must have a phone number')
         if password is None:
             raise TypeError('User must have a password')
-        if role is None:
-            raise TypeError('User must have a role')
 
         user = self.model(email=self.normalize_email(email),
                           phone=phone,
@@ -44,7 +42,7 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, email, phone, password, **kwargs):
         """Super user function"""
-        kwargs.setdefault('role', 'admin')  # Set default role for superuser
+        kwargs.setdefault('role', 'Admin')  # Set default role for superuser
 
         if kwargs.get('role') is None:
             raise ValueError('Superusers must have a role.')
@@ -73,7 +71,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     address = models.CharField(max_length=150)
     state_of_residence = models.CharField(max_length=15)
     created_at = models.DateTimeField(auto_now_add=True)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="User")
     is_superuser = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)

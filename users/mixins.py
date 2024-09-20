@@ -12,7 +12,6 @@ class OTPVerificationMixin:
 
         try:
             user = User.objects.get(id=user_id)
-            print("User", user)
             otp_instance = OTP.objects.get(user=user)
 
             if otp_instance.otp == otp and otp_instance.is_valid():
