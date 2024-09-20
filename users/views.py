@@ -23,6 +23,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from ecoride.utils import send_otp_email
+from ecoride.settings import BASE_URL
 
 from .models import OTP, User
 from .serializers import UserSerializer, CustomTokenObtainPairSerializer
@@ -78,7 +79,8 @@ class RegisterView(APIView):
             # Determine how to send the OTP based on message_type
             message_type = request.data.get('message_type', 'email').lower()
             if message_type == 'email':
-                send_otp_email(user, otp_instance.otp)
+                link = f"{BASE_URL}/authentication/verification/?verificationType=activate&email={user.email}&id={user.id}&otp={otp_instance.otp}"
+                send_otp_email(user, link, "activate")
             elif message_type == 'sms':
                 return Response({'detail': 'SMS not available in development'},\
                                 status=status.HTTP_404_NOT_FOUND)
@@ -220,15 +222,19 @@ class RequestNewOTPView(APIView):
                 return Response({'detail': 'Invalid message type. Choose either \
                                  "email" or "sms".'}, status=status.HTTP_400_BAD_REQUEST)
 
-            otp_instance, created = OTP.objects.get_or_create(user=user)
-
+            try:
+                otp_instance = OTP.objects.get(user=user)
+            except OTP.DoesNotExist:
+                otp_instance = OTP.objects.create(user=user, otp=str(randint(10000, 99999)),\
+                                              expires_at=timezone.now() + timedelta(minutes=5))
             # Generate a new OTP if the current one is expired
-            if created or not otp_instance.is_valid():
+            if not otp_instance.is_valid():
                 otp_instance.generate_new_otp()
 
             # Send OTP based on the message_type
             if message_type == 'email':
-                send_otp_email(user, otp_instance.otp)
+                link = f"{BASE_URL}/authentication/verification/?verificationType=update-password&email={user.email}&id={user.id}&otp={otp_instance.otp}"
+                send_otp_email(user, link, "verify")
             elif message_type == 'sms':
                 return Response({'detail': 'SMS not available in development'},\
                                 status=status.HTTP_404_NOT_FOUND)
@@ -237,9 +243,7 @@ class RequestNewOTPView(APIView):
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
-        except OTP.DoesNotExist:
-            return Response({'detail': 'OTP not found.'}, status=status.HTTP_404_NOT_FOUND)
-
+        
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     Custom token obtain view that uses 
@@ -541,7 +545,7 @@ class DeleteAccountView(APIView):
                     pass 
             # Delete the user
             user.delete()
-            return Response({"detail": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response({"detail": "Account deleted successfully."}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"detail": "Could not delete account."}, status=status.HTTP_400_BAD_REQUEST)
 
