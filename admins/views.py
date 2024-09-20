@@ -8,6 +8,9 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
 
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 from bookings.models import Booking
 
 from .serializers import EarningsSerializer
@@ -20,6 +23,29 @@ class DashboardOverview(APIView):
     """
     permission_classes = [IsAuthenticated, IsAdminUser]
 
+    @swagger_auto_schema(
+        operation_summary="Get dashboard overview for admin",
+        operation_description="Returns statistics about total users, rides, deliveries, and earnings. Accessible only by admins.",
+        responses={
+            200: openapi.Response(
+                description="Dashboard overview data",
+                examples={
+                    "application/json": {
+                        "total_users": 150,
+                        "total_active_users": 100,
+                        "total_inactive_users": 50,
+                        "total_rides": 120,
+                        "total_deliveries": 30,
+                        "total_ride_earnings": 50000.00,
+                        "total_delivery_earnings": 15000.00
+                    }
+                },
+            ),
+            403: "Forbidden. Only accessible by admins.",
+            401: "Unauthorized. User not authenticated.",
+        },
+    )
+    
     def get(self, request, *args, **kwargs):
         # Users related data
         total_users = User.objects.count()
