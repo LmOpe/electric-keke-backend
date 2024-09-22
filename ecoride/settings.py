@@ -34,6 +34,7 @@ DEBUG = os.getenv("DEBUG")
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'whitenoise.runserver_nostatic',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -44,9 +45,11 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'drf_yasg',
+    'channels',
     'users',
     'bookings',
-    'admins'
+    'admins',
+    'supports',
 ]
 
 MIDDLEWARE = [
@@ -79,6 +82,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ecoride.wsgi.application'
+ASGI_APPLICATION = "ecoride.asgi.application"
 
 
 # Database

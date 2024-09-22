@@ -12,6 +12,7 @@ djangorestframework-simplejwt = "==5.3.1"
 drf-yasg = "==1.21.7"
 setuptools = "*"
 whitenoise = "*"
+channels = {extras = ["daphne"], version = "*"}
 
 [dev-packages]
 
