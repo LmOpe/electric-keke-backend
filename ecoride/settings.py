@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'users',
     'bookings',
+    'profiles',
     'admins'
 ]
 
@@ -58,6 +59,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'ecoride.custom_exception.CustomException',
 ]
 
 ROOT_URLCONF = 'ecoride.urls'
