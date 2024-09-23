@@ -9,6 +9,6 @@ class UnassignedTicketListView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        unassigned_tickets = SupportTicket.objects.filter(admin__isnull=True, status='open')
+        unassigned_tickets = SupportTicket.objects.filter(assigned_admin__isnull=True, status='open')
         serializer = SupportTicketSerializer(unassigned_tickets, many=True)
         return Response(serializer.data)

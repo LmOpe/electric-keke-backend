@@ -4,7 +4,7 @@ from .models import SupportTicket, ChatMessage
 class SupportTicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupportTicket
-        fields = ['id', 'user', 'admin', 'created_at', 'status']
+        fields = ['id', 'user', 'assigned_admin', 'created_at', 'status']
 
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:

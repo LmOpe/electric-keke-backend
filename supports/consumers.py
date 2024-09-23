@@ -27,19 +27,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         self.ticket_id = self.scope['url_route'].get('kwargs', {}).get('ticket_id', None)
         
-        # Fetch the ticket or disconnect if invalid
-        ticket = await database_sync_to_async(self.get_ticket)(self.ticket_id)
-        if ticket is None:
-            await self.close()
-            return
-        
-        self.ticket_group_name = f"support_{self.ticket_id}"
+        await self.accept()
+
+        if not self.ticket_id:
+            ticket = await database_sync_to_async(self.create_ticket)()
+            self.ticket_id = ticket.id
+            self.ticket_group_name = f"support_{self.ticket_id}"
+            
+            # Send ticket ID and initial message
+            await self.send(text_data=json.dumps({
+                'ticket_id': self.ticket_id,
+                'message': "Hi! Welcome, kindly drop your message below. You will be connected to a support agent soon."
+            }))
+        else:
+            ticket = await database_sync_to_async(self.get_ticket)(self.ticket_id)
+            self.ticket_group_name = f"support_{self.ticket_id}"
+
+        assigned_admin, user = await self.get_ticket_data(ticket)
 
         # Allow only the user who created the ticket and the assigned admin to access
         if self.user.is_staff:
-            if ticket.assigned_admin:
+            if assigned_admin:
                 # If an admin is already assigned and another admin tries to connect, disconnect
-                if ticket.assigned_admin != self.user:
+                if assigned_admin != self.user:
                     await self.send(text_data=json.dumps({
                         'error': 'This ticket is already assigned to another admin.'
                     }))
@@ -50,7 +60,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await database_sync_to_async(self.assign_admin)(ticket)
         else:
             # If it's a normal user, check if they are the owner of the ticket
-            if ticket.user != self.user:
+            if user != self.user:
                 await self.send(text_data=json.dumps({
                     'error': 'You are not authorized to access this ticket.'
                 }))
@@ -61,16 +71,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.ticket_group_name, self.channel_name)
 
         # Fetch and send existing messages to the user or admin
-        messages = await database_sync_to_async(self.get_existing_messages)()
-        for message in messages:
-            await self.send(text_data=json.dumps({
-                'message': message.message,
-                'sender': message.sender.email,
-                'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-            }))
+        messages = await self.get_existing_messages()
+        if messages:
+            for message in messages:
+                await self.send(text_data=json.dumps(message))
 
-        await self.accept()
-
+    def create_ticket(self):
+        # Automatically create a ticket when the user starts a chat
+        return SupportTicket.objects.create(user=self.user)
+    
     def get_ticket(self, ticket_id):
         # Fetch the ticket based on the provided ticket_id
         try:
@@ -84,11 +93,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
         ticket.status = 'in_progress'
         ticket.save()
 
+    @database_sync_to_async
+    def get_ticket_data(self, ticket):
+        assigned_admin = ticket.assigned_admin
+        user = ticket.user
+
+        return  assigned_admin, user
+        
+    @database_sync_to_async
     def get_existing_messages(self):
         # Fetch all existing messages for the ticket
         ticket = SupportTicket.objects.get(id=self.ticket_id)
-        return ticket.messages.all()
-
+        
+        # Use list comprehension to create a list of message data
+        return [
+            {
+                'message': message.message,
+                'sender': message.sender.email,
+                'user': message.sender.role,
+                'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            for message in ticket.messages.all()
+        ]
+    
     async def receive(self, text_data):
         data = json.loads(text_data)
         message = data.get('message')
