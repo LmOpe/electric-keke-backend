@@ -161,3 +161,51 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return User.objects.get(id=user_id)
         except User.DoesNotExist:
             return None
+
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        token = self.scope['query_string'].decode().split("token=")[1]
+        try:
+            # Decode the JWT token to retrieve the user ID
+            decoded_data = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            self.user = await self.get_user(decoded_data['user_id'])
+            if self.user is None:
+                raise AuthenticationFailed("Invalid token")
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, AuthenticationFailed):
+            await self.close()
+            return
+
+        # Get the user ID and form a unique notification group
+        self.group_name = f"user_{self.user.id}_notifications"
+
+        # Add the user to their unique notification group
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Remove the user from the notification group
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+
+    # Receive message from the group
+    async def send_notification(self, event):
+        message = event['message']
+
+        # Send notification to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'notification',
+            'message': message
+        }))
+
+    @database_sync_to_async
+    def get_user(self, user_id):
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return None

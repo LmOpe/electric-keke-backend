@@ -9,6 +9,8 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from ecoride.utils import send_notification
+
 from users.models import User
 from users.permissions import IsUser
 
@@ -276,25 +278,41 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
             if new_status not in ['cancelled', 'completed']:
                 return Response({'detail': 'You can only update status to cancelled or completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if booking.status == 'completed' and booking.status == "completed":
+            if booking.status == 'completed' and new_status == "completed":
                 # Handle payment confirmation for the rider
                 return Response({'detail': 'Booking completion confirmed successfully.'}, status=status.HTTP_200_OK)
 
             if new_status == 'cancelled' and booking.status in ['accepted', 'in_progress', 'pending']:
-                # Handle cancellation and notification
-                # Notify rider about the cancellation
-                # Handle refund if required
+                # Handle cancellation and notify rider
                 booking.status = 'cancelled'
                 booking.save()
+
+                # Notify the rider about cancellation
+                notification_data = {
+                    'type': 'booking_cancelled',
+                    'booking_id': booking.id,
+                    'message': f"Booking {booking.id} has been cancelled by the user.",
+                }
+                send_notification(booking.rider.id, notification_data)
+                
                 return Response({'detail': 'Booking cancelled successfully.'}, status=status.HTTP_200_OK)
 
             if new_status == 'completed' and booking.status == 'in_progress':
-                # Handle payment completion and notifications
                 # Mark the booking as completed
                 booking.status = 'completed'
                 booking.save()
+
+                # Notify the rider that the booking is completed
+                notification_data = {
+                    'type': 'booking_completed',
+                    'booking_id': booking.id,
+                    'message': f"Booking {booking.id} has been completed by the user.",
+                }
+                send_notification(booking.rider.id, notification_data)
+
                 return Response({'detail': 'Booking completed successfully.'}, status=status.HTTP_200_OK)
 
+        # Rider role actions
         if user.role == 'Rider':
             if new_status not in ['accepted', 'in_progress', 'cancelled', 'completed']:
                 return Response({'detail': 'You can only update status to accepted, in_progress, cancelled or completed.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -303,28 +321,63 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                 return Response({'detail': 'This booking has already been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
             if new_status == 'accepted' and booking.status == 'pending':
-                # Notify the user that the rider accepted the booking
+                # Update status to accepted and notify user
                 booking.status = 'accepted'
                 booking.save()
+
+                # Notify the user that the booking was accepted
+                notification_data = {
+                    'type': 'booking_accepted',
+                    'booking_id': booking.id,
+                    'message': f"Your booking {booking.id} has been accepted by the rider.",
+                }
+                send_notification(booking.user.id, notification_data)
+
                 return Response({'detail': 'Booking accepted successfully.'}, status=status.HTTP_200_OK)
 
             if new_status == 'in_progress' and booking.status == 'accepted':
-                # Notify user that the ride has started
+                # Update status to in_progress and notify user
                 booking.status = 'in_progress'
                 booking.save()
+
+                # Notify the user that the booking is in progress
+                notification_data = {
+                    'type': 'booking_in_progress',
+                    'booking_id': booking.id,
+                    'message': f"Your booking {booking.id} is now in progress.",
+                }
+                send_notification(booking.user.id, notification_data)
+
                 return Response({'detail': 'Booking is now in progress.'}, status=status.HTTP_200_OK)
 
             if new_status == 'completed' and booking.status == 'in_progress':
-                # Mark booking as completed
+                # Mark the booking as completed
                 booking.status = 'completed'
                 booking.save()
+
+                # Notify the user that the booking is completed
+                notification_data = {
+                    'type': 'booking_completed',
+                    'booking_id': booking.id,
+                    'message': f"Your booking {booking.id} has been completed.",
+                }
+                send_notification(booking.user.id, notification_data)
+
                 return Response({'detail': 'Booking completed successfully.'}, status=status.HTTP_200_OK)
 
             if new_status == 'cancelled':
-                # Handle cancellation by rider
-                # Notify user about the cancellation
+                # Update status to cancelled and notify user
                 booking.status = 'cancelled'
                 booking.save()
+
+                # Notify the user that the booking was cancelled by the rider
+                notification_data = {
+                    'type': 'booking_cancelled_by_rider',
+                    'booking_id': booking.id,
+                    'message': f"Your booking {booking.id} has been cancelled by the rider.",
+                }
+                send_notification(booking.user.id, notification_data)
+
                 return Response({'detail': 'Booking cancelled by rider.'}, status=status.HTTP_200_OK)
 
         return Response({'detail': 'Invalid status update.'}, status=status.HTTP_400_BAD_REQUEST)

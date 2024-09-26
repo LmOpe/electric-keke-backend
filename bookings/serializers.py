@@ -4,7 +4,10 @@ All serializers for bookings app
 # pylint: disable=no-member
 
 from rest_framework import serializers
+
 from users.models import User
+from ecoride.utils import send_notification
+
 from .models import Booking
 
 class RiderSerializer(serializers.ModelSerializer):
@@ -46,7 +49,22 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         validated_data['rider'] = rider
         validated_data['user'] = user
 
-        return super().create(validated_data)
+        # Create the booking
+        booking = super().create(validated_data)
+
+        notification_data = {
+            'type': 'new_booking_notification',
+            'booking_id': booking.id,
+            'booking_type': booking.booking_type,
+            'destination': booking.destination,
+            'origin': booking.origin,
+            'price': booking.price,
+            'package_details': booking.package_details,
+        }
+
+        send_notification(rider.id, notification_data)
+
+        return booking
 
 class BookingStatusUpdateSerializer(serializers.ModelSerializer):
     """
