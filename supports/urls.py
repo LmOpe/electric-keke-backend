@@ -14,4 +14,5 @@ websocket_urlpatterns = [
 
     # Route for existing chat (with ticket ID)
     re_path(r'ws/support/(?P<ticket_id>\w+)/$', consumers.ChatConsumer.as_asgi()),
+    re_path(r'ws/notifications/', consumers.NotificationConsumer.as_asgi()),
 ]

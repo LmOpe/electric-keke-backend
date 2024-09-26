@@ -32,6 +32,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     """
     id = serializers.ReadOnlyField()
     status = serializers.ReadOnlyField()
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=False)
 
     class Meta:
         model = Booking
@@ -58,8 +59,12 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             'booking_type': booking.booking_type,
             'destination': booking.destination,
             'origin': booking.origin,
-            'price': booking.price,
+            'price': str(booking.price),
             'package_details': booking.package_details,
+            'passenger_name': booking.user.fullname,
+            'passenger_email': booking.user.email,
+            'passenger_phone': booking.user.phone,
+            'passenger_address': booking.user.address,
         }
 
         send_notification(rider.id, notification_data)
