@@ -34,6 +34,7 @@ DEBUG = os.getenv("DEBUG")
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'whitenoise.runserver_nostatic',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -44,13 +45,18 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'drf_yasg',
+    'channels',
+    "corsheaders",
     'users',
     'bookings',
-    'admins'
+    'profiles',
+    'admins',
+    'supports',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -58,6 +64,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'ecoride.custom_exception.CustomException',
 ]
 
 ROOT_URLCONF = 'ecoride.urls'
@@ -79,6 +86,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ecoride.wsgi.application'
+ASGI_APPLICATION = "ecoride.asgi.application"
 
 
 # Database
@@ -167,7 +175,7 @@ REST_FRAMEWORK = {
 
 # Simple JWT settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=1) if not DEBUG else timedelta(minutes=10),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=1) if not DEBUG else timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,

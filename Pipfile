@@ -12,6 +12,8 @@ djangorestframework-simplejwt = "==5.3.1"
 drf-yasg = "==1.21.7"
 setuptools = "*"
 whitenoise = "*"
+channels = {extras = ["daphne"], version = "*"}
+django-cors-headers = "==4.4.0"
 
 [dev-packages]
 
