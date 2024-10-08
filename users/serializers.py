@@ -1,6 +1,7 @@
 """Serializers for the authentication related logic"""
 # pylint: disable=too-few-public-methods
 # pylint: disable=arguments-renamed
+import re
 
 from django.contrib.auth import authenticate
 
@@ -29,9 +30,24 @@ class UserSerializer(serializers.ModelSerializer):
     def validate(self, data):
         password = data.get('password')
         re_password = data.get('re_password')
-
+        
         if password != re_password:
             raise serializers.ValidationError({"password": "Passwords do not match."})
+        
+        if len(password) < 6:
+            raise serializers.ValidationError({"password": "Password must be at least 6 characters long."})
+                                              
+        if not re.search(r'[A-Z]', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one uppercase letter."})
+
+        if not re.search(r'[a-z]', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one lowercase letter."})
+
+        if not re.search(r'\d', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one digit."})
+
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+            raise serializers.ValidationError({"password": "Password must contain at least one special character."})
 
         return data
 
@@ -57,6 +73,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         if not user:
             raise AuthenticationFailed('Invalid credentials')
+
+        if not user.is_active:
+            raise AuthenticationFailed('User account is inactive')
 
         # If authentication is successful, add the user to attrs
         attrs['user'] = user
