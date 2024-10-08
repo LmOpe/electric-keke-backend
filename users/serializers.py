@@ -69,13 +69,24 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         username = attrs.get('username')
         password = attrs.get('password')
 
+        try:
+            if "@" in username:
+                user = User.objects.get(email=username)
+            else:
+                user = User.objects.get(phone=username)
+            if not user.is_active:
+                raise AuthenticationFailed('User account is inactive')
+        except User.DoesNotExist:
+            raise AuthenticationFailed('Invalid credentials')
+        except AuthenticationFailed:
+            raise AuthenticationFailed('User account is inactive')
+        except Exception as exc:
+            raise AuthenticationFailed("Something went wrong") from exc
+
         user = authenticate(request=self.context.get('request'), username=username, password=password)
 
         if not user:
             raise AuthenticationFailed('Invalid credentials')
-
-        if not user.is_active:
-            raise AuthenticationFailed('User account is inactive')
 
         # If authentication is successful, add the user to attrs
         attrs['user'] = user
