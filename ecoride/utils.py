@@ -11,6 +11,9 @@ def send_otp_email(user, otp_link, link_type):
     """Method for sending OTP to user's email with professional styling."""
     
     subject = 'Ecoride - Account Verification'
+    action=None
+    greeting=None
+    footer=None
 
     if link_type == "activate":
         greeting = f"Dear {user.fullname},"
@@ -27,8 +30,10 @@ def send_otp_email(user, otp_link, link_type):
             <div style="background-color: #f4f4f4; padding: 20px; border-radius: 8px;">
                 <h2 style="color: #4CAF50;">Ecoride - {action.capitalize()}</h2>
                 <p>{greeting}</p>
-                <p>To {action}, please click the link below:</p>
-                <a href="{otp_link}" style="color: #4CAF50; text-decoration: none; font-weight: bold;">{otp_link}</a>
+                <p>Please use this code to {action}</p>
+                <p>OTP: {otp_link}</p>
+                # <p>To {action}, please click the link below:</p>
+                # <a href="{otp_link}" style="color: #4CAF50; text-decoration: none; font-weight: bold;">{otp_link}</a>
                 <p>If you did not request this, please ignore this email.</p>
                 <p>{footer}</p>
                 <p>Best regards,<br>Ecoride Team</p>

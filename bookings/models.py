@@ -5,6 +5,9 @@ Models related to Bookings
 
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
+
+from users.models import User
 
 class Booking(models.Model):
     """
@@ -68,3 +71,31 @@ class Booking(models.Model):
     def approve_dispute(self):
         self.status = 'dispute_approved'
         self.save()
+
+class Wallet(models.Model):
+    rider = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name="rider_wallet"
+    )
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def save(self, *args, **kwargs):
+        # Ensure that the associated user has the role of 'Rider'
+        if self.rider.role != 'Rider':
+            raise ValidationError("Only users with role 'Rider' can have a wallet.")
+        super().save(*args, **kwargs)
+
+    def deposit(self, amount):
+        """Add funds to the wallet."""
+        self.balance += amount
+        self.save()
+
+    def withdraw(self, amount):
+        """Subtract funds from the wallet, allowing negative balances."""
+        self.balance -= amount
+        self.save()
+
+    def __str__(self):
+        return f"Wallet of {self.rider.username} - Balance: {self.balance}"

@@ -79,8 +79,8 @@ class RegisterView(APIView):
             # Determine how to send the OTP based on message_type
             message_type = request.data.get('message_type', 'email').lower()
             if message_type == 'email':
-                link = f"{BASE_URL}/authentication/verification/?verificationType=activate&email={user.email}&id={user.id}&otp={otp_instance.otp}"
-                send_otp_email(user, link, "activate")
+                # link = f"{BASE_URL}/authentication/verification/?verificationType=activate&email={user.email}&id={user.id}&otp={otp_instance.otp}"
+                send_otp_email(user, otp_instance.otp, "activate")
             elif message_type == 'sms':
                 return Response({'detail': 'SMS not available in development'},\
                                 status=status.HTTP_404_NOT_FOUND)
@@ -233,8 +233,8 @@ class RequestNewOTPView(APIView):
 
             # Send OTP based on the message_type
             if message_type == 'email':
-                link = f"{BASE_URL}/authentication/verification/?verificationType=update-password&email={user.email}&id={user.id}&otp={otp_instance.otp}"
-                send_otp_email(user, link, "verify")
+                # link = f"{BASE_URL}/authentication/verification/?verificationType=update-password&email={user.email}&id={user.id}&otp={otp_instance.otp}"
+                send_otp_email(user, otp_instance.otp, "verify")
             elif message_type == 'sms':
                 return Response({'detail': 'SMS not available in development'},\
                                 status=status.HTTP_404_NOT_FOUND)
