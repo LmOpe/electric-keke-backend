@@ -17,6 +17,6 @@ app.autodiscover_tasks()
 app.conf.beat_schedule = {
     'send-rider-location-every-5-seconds': {
         'task': 'bookings.tasks.send_rider_location',  # reference the task by name
-        'schedule': 5.0,  # run every 5 seconds
+        'schedule': 5000.0,  # run every 5 seconds
     },
 }

@@ -18,4 +18,5 @@ urlpatterns = [
 websocket_urlpatterns = [
     re_path(r'ws/rider/location/', consumers.RiderLocationConsumer.as_asgi()),
     re_path(r'ws/tracking/(?P<booking_id>\w+)/$', consumers.RideTrackingConsumer.as_asgi()),
+    re_path(r'ws/chat/(?P<booking_id>\w+)/$', consumers.RideChatConsumer.as_asgi()),
 ]

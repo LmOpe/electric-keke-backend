@@ -99,3 +99,12 @@ class Wallet(models.Model):
 
     def __str__(self):
         return f"Wallet of {self.rider.username} - Balance: {self.balance}"
+    
+class RideChatMessage(models.Model):
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="chat_messages")
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Message from {self.sender} in booking {self.booking.id}"
