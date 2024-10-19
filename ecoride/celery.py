@@ -13,3 +13,10 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 
 # Load task modules from all registered Django app configs.
 app.autodiscover_tasks()
+
+app.conf.beat_schedule = {
+    'send-rider-location-every-5-seconds': {
+        'task': 'bookings.tasks.send_rider_location',  # reference the task by name
+        'schedule': 5.0,  # run every 5 seconds
+    },
+}

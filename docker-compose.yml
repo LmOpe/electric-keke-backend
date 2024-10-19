@@ -12,12 +12,6 @@ services:
       - db  # Add PostgreSQL dependency
     env_file:
       - .env
-    environment:
-      - DEBUG=1  # Set this to 0 in production
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DB_HOST=db  # Add DB service name here
-      - DB_PORT=5432  # Default PostgreSQL port
 
   redis:
     image: redis:alpine
@@ -31,6 +25,7 @@ services:
       - .:/app
     depends_on:
       - redis
+      - db
     env_file:
       - .env
 
@@ -50,10 +45,6 @@ services:
       - postgres_data:/var/lib/postgresql/data/  # Data persistence
     env_file:
       - .env  # Load DB credentials from .env file
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}  # Refer to the variables in your .env file
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"  # Expose PostgreSQL port
 
