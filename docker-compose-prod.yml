@@ -1,0 +1,42 @@
+services:
+  web:
+    build: .
+    command: daphne -b 0.0.0.0 -p 8000 ecoride.asgi:application
+    restart: always
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - celery
+    env_file:
+      - .env
+
+  redis:
+    image: redis:alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    restart: always
+    command: celery -A ecoride worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    env_file:
+      - .env
+
+  celery-beat:
+    build: .
+    restart: always
+    command: celery -A ecoride beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    env_file:
+      - .env
