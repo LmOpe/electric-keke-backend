@@ -49,7 +49,6 @@ class RiderLocationConsumer(AsyncWebsocketConsumer):
 
         # Store the rider's location in Redis
         r.set(f'rider_{self.user.id}_location', json.dumps({'lat': rider_lat, 'long': rider_long}))
-        print("New locations:", rider_lat, rider_long)
 
     async def disconnect(self, close_code):
         # Remove the rider's ID from the active riders set in Redis when they disconnect

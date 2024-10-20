@@ -25,8 +25,17 @@ COPY requirements.txt /app/
 # Install Python dependencies
 RUN pip install -r requirements.txt
 
+# Create a non-root user and switch to it
+RUN useradd -ms /bin/bash celeryuser
+
 # Copy the current directory contents into the container at /app
 COPY . /app/
+
+# Set permissions to the non-root user
+RUN chown -R celeryuser:celeryuser /app
+
+# Switch to the non-root user
+USER celeryuser
 
 # Expose port 8000 for Django
 EXPOSE 8000
@@ -35,4 +44,4 @@ EXPOSE 8000
 RUN python manage.py collectstatic --noinput
 
 # Run the Django development server
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "ecoride.asgi:application"]

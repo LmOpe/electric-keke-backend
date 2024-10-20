@@ -32,8 +32,6 @@ def send_rider_location():
         # Get the associated rider's location from Redis (assuming it's stored in 'rider_<id>_location')
         rider_location = r.get(f'rider_{rider_id}_location')
 
-        print(rider_location, "Rider location")
-
         if rider_location:
             rider_location_data = json.loads(rider_location.decode('utf-8'))
 
