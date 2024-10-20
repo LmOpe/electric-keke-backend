@@ -293,7 +293,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                     'booking_id': booking.id,
                     'message': f"Booking {booking.id} has been cancelled by the user.",
                 }
-                #send_notification(booking.rider.id, notification_data)
+                send_notification(booking.rider.id, notification_data)
                 
                 return Response({'detail': 'Booking cancelled successfully.'}, status=status.HTTP_200_OK)
 
@@ -308,7 +308,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                     'booking_id': booking.id,
                     'message': f"Booking {booking.id} has been completed by the user.",
                 }
-                #send_notification(booking.rider.id, notification_data)
+                send_notification(booking.rider.id, notification_data)
 
                 return Response({'detail': 'Booking completed successfully.'}, status=status.HTTP_200_OK)
 
@@ -331,7 +331,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                     'booking_id': booking.id,
                     'message': f"Your booking {booking.id} has been accepted by the rider.",
                 }
-                #send_notification(booking.user.id, notification_data)
+                send_notification(booking.user.id, notification_data)
 
                 return Response({'detail': 'Booking accepted successfully.'}, status=status.HTTP_200_OK)
 
@@ -346,7 +346,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                     'booking_id': booking.id,
                     'message': f"Your booking {booking.id} is now in progress.",
                 }
-                #send_notification(booking.user.id, notification_data)
+                send_notification(booking.user.id, notification_data)
 
                 return Response({'detail': 'Booking is now in progress.'}, status=status.HTTP_200_OK)
 
@@ -361,7 +361,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                     'booking_id': booking.id,
                     'message': f"Your booking {booking.id} has been completed.",
                 }
-                #send_notification(booking.user.id, notification_data)
+                send_notification(booking.user.id, notification_data)
 
                 return Response({'detail': 'Booking completed successfully.'}, status=status.HTTP_200_OK)
 
@@ -376,7 +376,7 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                     'booking_id': booking.id,
                     'message': f"Your booking {booking.id} has been cancelled by the rider.",
                 }
-                #send_notification(booking.user.id, notification_data)
+                send_notification(booking.user.id, notification_data)
 
                 return Response({'detail': 'Booking cancelled by rider.'}, status=status.HTTP_200_OK)
 
