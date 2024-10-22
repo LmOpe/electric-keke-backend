@@ -1,11 +1,33 @@
 """Utility functions"""
 
+import hashlib
+import base64
+
 from django.core.mail import send_mail
 from django.utils.html import strip_tags
 
 from channels.layers import get_channel_layer
 
 from asgiref.sync import async_to_sync
+
+def hash_to_smaller_int(large_int):
+    # Convert the large integer to a string before hashing
+    large_int_str = str(large_int)
+    
+    # Compute the SHA-256 hash of the string representation of the large integer
+    hashed_bytes = hashlib.sha256(large_int_str.encode()).digest()
+    
+    # Convert the hashed bytes to an integer
+    hashed_int = int.from_bytes(hashed_bytes, byteorder='big')
+    
+    # Generate a smaller integer by taking the modulo of a large number
+    smaller_int = hashed_int % (10 ** 9)  # Restricting to a 9-digit number
+    
+    return smaller_int
+
+def base64_encode(value):
+    # Encode the concatenated string using Base64
+    return base64.b64encode(value.encode()).decode()
 
 def send_otp_email(user, otp_link, link_type):
     """Method for sending OTP to user's email with professional styling."""
