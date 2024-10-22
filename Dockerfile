@@ -23,7 +23,7 @@ RUN pip install --upgrade pip
 COPY requirements.txt /app/
 
 # Install Python dependencies
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Create a non-root user and switch to it
 RUN useradd -ms /bin/bash celeryuser
@@ -38,10 +38,10 @@ RUN chown -R celeryuser:celeryuser /app
 USER celeryuser
 
 # Expose port 8000 for Django
-EXPOSE 8000
+EXPOSE 80
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
 # Run the Django development server
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "ecoride.asgi:application"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "80", "ecoride.asgi:application"]

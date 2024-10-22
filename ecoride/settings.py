@@ -196,19 +196,18 @@ CORS_ALLOWED_ORIGINS = [
     "https://electric-keke-frontend.vercel.app",
 ]
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", 'localhost, 0.0.0.0, 127.0.0.1,.vercel.app,.now.sh,\
-                          https://electric-keke-backend.vercel.app/,https://electric-keke-backend-julp8kypl-lmopes-projects.vercel.app/')\
-                            .split(',')
+#ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", 'localhost,0.0.0.0,127.0.0.1,34.246.47.129,.vercel.app,.now.sh,\
+ #                         https://electric-keke-backend.vercel.app/,https://electric-keke-backend-julp8kypl-lmopes-projects.vercel.app/')\
+  #                          .split(',')
 
-if DEBUG:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-else:
-    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-    EMAIL_HOST = os.getenv("EMAIL_HOST")
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+ALLOWED_HOSTS = ['*']
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 # Security settings
 SECURE_SSL_REDIRECT = not DEBUG
@@ -251,3 +250,5 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+APPEND_SLASH=False
