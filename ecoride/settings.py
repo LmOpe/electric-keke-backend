@@ -251,4 +251,10 @@ CHANNEL_LAYERS = {
     },
 }
 
-APPEND_SLASH=False
+#APPEND_SLASH=False
+
+# Google configuration
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv("GOOGLE_ID")
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv("GOOGLE_SECRET")
+
+BACKEND_URL = os.getenv("BACKEND_URL")

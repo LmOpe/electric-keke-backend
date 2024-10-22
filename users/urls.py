@@ -4,7 +4,8 @@ from django.urls import path
 
 from .views import RegisterView, ActivateUserView, RequestNewOTPView,\
     CustomTokenObtainPairView, ResetPasswordView, GetAuthUser,\
-    LogoutView, DeleteAccountView, CustomTokenRefreshView, VerifyOTPView
+    LogoutView, DeleteAccountView, CustomTokenRefreshView, VerifyOTPView,\
+    GoogleRedirectURIView
 
 
 urlpatterns = [
@@ -18,4 +19,5 @@ urlpatterns = [
     path('delete-account/', DeleteAccountView.as_view(), name='delete_account'),
     path('otp-verification/', VerifyOTPView.as_view(), name='verify_otp'),
     path('auth-user/', GetAuthUser.as_view(), name='auth_user'),
+    path("google/signup/", GoogleRedirectURIView.as_view(), name="google-handle-redirect"),
 ]

@@ -1,12 +1,12 @@
 services:
   web:
     build: .
-    command: daphne -b 0.0.0.0 -p 8000 ecoride.asgi:application
+    command: daphne -b 0.0.0.0 -p 80 ecoride.asgi:application
     restart: always
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "80:80"
     depends_on:
       - redis
       - celery

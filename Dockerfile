@@ -23,7 +23,8 @@ RUN pip install --upgrade pip
 COPY requirements.txt /app/
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+#RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Create a non-root user and switch to it
 RUN useradd -ms /bin/bash celeryuser
