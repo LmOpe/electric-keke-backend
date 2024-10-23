@@ -668,7 +668,7 @@ class GoogleRedirectURIView(APIView):
                             data['access'] = str(refresh.access_token)
                             data['refresh'] = str(refresh)
                             frontend_redirect_url = f"{settings.BASE_URL}/google-signup?access_token={data['access']}&refresh_token={data['refresh']}"
-                            return Response({"Access": data['access'], "Refresh": data['refresh']}, status.HTTP_200_OK)
-                            #return HttpResponseRedirect(frontend_redirect_url)
+                            #return Response({"Access": data['access'], "Refresh": data['refresh']}, status.HTTP_200_OK)
+                            return HttpResponseRedirect(frontend_redirect_url)
                         
         return Response({}, status.HTTP_400_BAD_REQUEST)
