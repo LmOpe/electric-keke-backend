@@ -2,28 +2,30 @@
 
 # pylint: disable=no-member
 # pylint: disable=bare-except
+import requests
 
 from random import randint
 from datetime import timedelta
 
 from django.utils import timezone
+from django.conf import settings
+from django.http import HttpResponseRedirect
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
 
-
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.exceptions import TokenError
-
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from ecoride.utils import send_otp_email
-from ecoride.settings import BASE_URL
+from ecoride.utils import send_otp_email, hash_to_smaller_int
+from ecoride.settings import BACKEND_URL
 
 from .models import OTP, User
 from .serializers import UserSerializer, CustomTokenObtainPairSerializer
@@ -599,3 +601,74 @@ class GetAuthUser(APIView):
             
         }
         return Response(user_data, status=status.HTTP_200_OK)
+
+class GoogleRedirectURIView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        # Extract the authorization code from the request URL
+        code = request.GET.get('code')
+        
+        if code:
+            # Prepare the request parameters to exchange the authorization code for an access token
+            token_endpoint = 'https://oauth2.googleapis.com/token'
+            token_params = {
+                'code': code,
+                'client_id': settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY,
+                'client_secret': settings.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET,
+                'redirect_uri': f'{BACKEND_URL}/api/v1/auth/google/signup',  # Must match the callback URL configured in your Google API credentials
+                'grant_type': 'authorization_code',
+            }
+            
+            # Make a POST request to exchange the authorization code for an access token
+            try:
+                response = requests.post(token_endpoint, data=token_params)
+            except:
+                return HttpResponseRedirect(f"{settings.BASE_URL}/onboarding/registration")
+            
+            if response.status_code == 200:
+                access_token = response.json().get('access_token')
+                
+                if access_token:
+                    # New People API endpoint for fetching detailed user profile information
+                    profile_endpoint = 'https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,phoneNumbers,addresses'
+                    headers = {'Authorization': f'Bearer {access_token}'}
+                    # Make a request to the People API to get the user's detailed profile
+                    profile_response = requests.get(profile_endpoint, headers=headers)
+                    user = None
+                    if profile_response.status_code == 200:
+                        data = {}
+                        profile_data = profile_response.json()
+                        
+                        # You can now extract additional fields, for example:
+                        name = profile_data.get('names', [{}])[0].get('displayName', 'Unknown')
+                        email = profile_data.get('emailAddresses', [{}])[0].get('value', 'Unknown')
+                        phone_number = profile_data.get('phoneNumbers', [{}])[0].get('value', 'Not provided')
+                        address = profile_data.get('addresses', [{}])[0].get('formattedValue', 'Not provided')
+                        
+                        # Proceed with user creation or login
+                        uid = hash_to_smaller_int(profile_data['resourceName'])  # Replace 'id' with 'resourceName'
+
+                        try:
+                            user = User.objects.get(id=uid)
+                            
+                            refresh = RefreshToken.for_user(user)
+                            data['access'] = str(refresh.access_token)
+                            data['refresh'] = str(refresh)
+                            frontend_redirect_url = f"{settings.BASE_URL}/google-signup?access_token={data['access']}&refresh_token={data['refresh']}"
+
+                            return HttpResponseRedirect(frontend_redirect_url)
+
+                        except User.DoesNotExist:
+                            user = User.objects.create_user(id=uid,fullname=name, phone=phone_number,\
+                                                address=address, state_of_residence=address,role="User",
+                                                email=f"{email}-{uid}", password='@Temp123', is_active=True)
+                            
+                            refresh = RefreshToken.for_user(user)
+                            data['access'] = str(refresh.access_token)
+                            data['refresh'] = str(refresh)
+                            frontend_redirect_url = f"{settings.BASE_URL}/google-signup?access_token={data['access']}&refresh_token={data['refresh']}"
+                            #return Response({"Access": data['access'], "Refresh": data['refresh']}, status.HTTP_200_OK)
+                            return HttpResponseRedirect(frontend_redirect_url)
+                        
+        return Response({}, status.HTTP_400_BAD_REQUEST)
