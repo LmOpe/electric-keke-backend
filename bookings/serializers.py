@@ -67,7 +67,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             'passenger_address': booking.user.address,
         }
 
-        #send_notification(rider.id, notification_data)
+        send_notification(rider.id, notification_data)
 
         return booking
 
