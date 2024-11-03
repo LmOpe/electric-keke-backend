@@ -452,6 +452,32 @@ class ResetPasswordView(APIView):
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+class ChangePasswordWithOldPass(APIView):
+    """
+    Change authenticated user's Password
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def put(self, request, *args, **kwargs):
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+        re_new_password = request.data.get("re_new_password")
+        user = request.user
+
+        if not old_password or not new_password or not re_new_password:
+            return Response({"detail: All fields are required!"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user.check_password(old_password):
+            return Response({"erorr": "Old password is wrong!"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if new_password != re_new_password:
+            return Response({"error": "Passwords do not match!"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({"detail": "Password changed successfully"}, status=status.HTTP_201_CREATED)
 
 class LogoutView(APIView):
     """

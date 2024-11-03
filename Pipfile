@@ -17,6 +17,7 @@ django-cors-headers = "==4.4.0"
 celery = "==5.5.0b3"
 django-celery-beat = "*"
 gevent = "==24.2.1"
+redis = "*"
 
 [dev-packages]
 
