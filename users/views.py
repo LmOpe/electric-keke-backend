@@ -452,6 +452,85 @@ class ResetPasswordView(APIView):
 
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+class ChangePasswordWithOldPass(APIView):
+    """
+    Change authenticated user's Password
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Chnage the password for authenticated user.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['old_password', 'new_password', 're_new_password'],
+            properties={
+                'old_password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The old password for the user'
+                ),
+                'new_password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The new password for the account.'
+                ),
+                're_new_password': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The confirmation of the new password.'
+                ),
+            },
+            example={
+                'old_password': 'oldpassword123',
+                'new_password': 'newpassword123',
+                're_new_password': 'newpassword123',
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Password has been reset successfully.",
+                examples={
+                    "application/json": {
+                        "detail": "Password has been reset successfully."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid input or missing required fields.",
+                examples={
+                    "application/json": {
+                        "detail": "Passwords do not match."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="Invalid credentials",
+                examples={
+                    "application/json": {
+                         "detail": "Authentication credentials were not provided."
+                    }
+                }
+            )
+        }
+    )
+
+    def put(self, request, *args, **kwargs):
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+        re_new_password = request.data.get("re_new_password")
+        user = request.user
+
+        if not old_password or not new_password or not re_new_password:
+            return Response({"detail: All fields are required!"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user.check_password(old_password):
+            return Response({"erorr": "Old password is wrong!"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if new_password != re_new_password:
+            return Response({"error": "Passwords do not match!"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({"detail": "Password changed successfully"}, status=status.HTTP_201_CREATED)
 
 class LogoutView(APIView):
     """
@@ -672,3 +751,74 @@ class GoogleRedirectURIView(APIView):
                             return HttpResponseRedirect(frontend_redirect_url)
                         
         return Response({}, status.HTTP_400_BAD_REQUEST)
+
+class Profile(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        operation_description="Change any of the user's profile data. All fields are optional",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'fullname': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='New user"s fullname.'
+                ),'email': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='New user"s email.'
+                ),
+                'phone': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='New user"s phone number'
+                ),
+                'address': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='New user"s address'
+                ),
+                'state': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='New user"s state of residence.'
+                )
+            },
+            example={
+                'fullname': 'John Doe',
+                'email': 'john.doe@ecoride.com',
+                'state': 'Texas',
+            }
+        ),
+        responses={
+            204: openapi.Response(
+                description="No content"
+            ),
+            401: openapi.Response(
+                description="Invalid credentials",
+                examples={
+                    "application/json": {
+                        "detail": "Given token not valid for any token type"
+                    }
+                }
+            )
+        }
+    )
+
+    def put(self, request, *args, **kwargs):
+        fullname = request.data.get("fullname")
+        email = request.data.get("email")
+        phone = request.data.get("phone")
+        address = request.data.get("address")
+        state = request.data.get("state")
+        user = request.user
+
+        def check_and_change(field_name, new_value, user):
+            if new_value is not None and hasattr(user, field_name):
+                setattr(user, field_name, new_value)
+            
+        check_and_change("fullname", fullname, user)
+        check_and_change("email", email, user)
+        check_and_change("phone_number", phone, user)
+        check_and_change("address", address, user)
+        check_and_change("state_of_residence", state, user)
+
+        user.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
