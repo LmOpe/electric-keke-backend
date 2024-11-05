@@ -2,21 +2,26 @@
 Bookings related views
 """
 # pylint: disable=no-member
+from decimal import Decimal
+
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+
+from django.shortcuts import get_object_or_404
 
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import NotFound, ValidationError
 
 from ecoride.utils import send_notification
 
 from users.models import User
 from users.permissions import IsUser
 
-from .models import Booking
-from .serializers import BookingSerializer, BookingCreateSerializer, BookingStatusUpdateSerializer
-from .serializers import RiderSerializer
+from .models import Booking, Wallet
+from .serializers import BookingSerializer, BookingCreateSerializer, BookingStatusUpdateSerializer,\
+                        RiderSerializer, WalletBalanceSerializer
 
 class AvailableRidersListView(generics.ListAPIView):
     """
@@ -381,3 +386,44 @@ class BookingStatusUpdateView(generics.UpdateAPIView):
                 return Response({'detail': 'Booking cancelled by rider.'}, status=status.HTTP_200_OK)
 
         return Response({'detail': 'Invalid status update.'}, status=status.HTTP_400_BAD_REQUEST)
+
+class CashPaymentView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = Wallet.objects.all()
+    serializer_class = WalletBalanceSerializer
+
+    def get_object(self):
+        queryset = self.get_queryset()
+        look_up_value = self.kwargs[self.lookup_field]
+        user = self.request.user
+        booking = None
+        try:
+            if user.role == "Rider":
+                booking = Booking.objects.get(rider = user, id=look_up_value)
+            elif user.role == "User":
+                booking = Booking.objects.get(user= user, id=look_up_value)
+        except Booking.DoesNotExist as exc:
+            raise NotFound("Bookings with the given id does not exist!") from exc
+
+        obj = get_object_or_404(queryset, rider=booking.rider)
+        self.check_object_permissions(self.request, obj)
+        return obj
+    
+    def perform_update(self, serializer):
+        user = self.request.user
+        instance = serializer.save()
+        amount = self.request.data.get("amount")
+        if amount is not None:
+            try:
+                amount = float(amount)
+                commission = Decimal(amount * 0.3)
+                if user.role == "Rider":
+                    instance.deposit(commission)
+                elif user.role == "User":
+                    instance.withdraw(commission)
+            except ValueError as exc:
+                raise ValueError("Invalid amount provided") from exc
+        else:
+            raise ValidationError("Amount cannot be none")
+        
+        return super().perform_update(serializer)

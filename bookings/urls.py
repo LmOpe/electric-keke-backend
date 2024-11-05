@@ -3,7 +3,7 @@
 from django.urls import path, re_path
 
 from .views import AvailableRidersListView, BookingCreateView,\
-    BookingListView, BookingStatusUpdateView
+    BookingListView, BookingStatusUpdateView, CashPaymentView
 
 from . import consumers
 
@@ -13,6 +13,7 @@ urlpatterns = [
     path('', BookingListView.as_view(), name='booking-list'),
     path('<int:pk>/status/', BookingStatusUpdateView.as_view(), \
          name='booking-status-update'),
+    path('payment/cash/<int:pk>/', CashPaymentView.as_view(), name="pay-with-cash")
 ]
 
 websocket_urlpatterns = [

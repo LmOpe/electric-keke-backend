@@ -27,6 +27,8 @@ from drf_yasg import openapi
 from ecoride.utils import send_otp_email, hash_to_smaller_int
 from ecoride.settings import BACKEND_URL
 
+from  bookings.models import Wallet
+
 from .models import OTP, User
 from .serializers import UserSerializer, CustomTokenObtainPairSerializer
 from .mixins import OTPVerificationMixin
@@ -125,6 +127,9 @@ class ActivateUserView(APIView, OTPVerificationMixin):
 
         user.is_active = True
         user.save()
+        # Create Wallet instance for each rider
+        if user.role == "Rider":
+            Wallet(rider=user).save()
         return Response({'detail': 'User activated successfully.'}, status=status.HTTP_200_OK)
 
 class VerifyOTPView(APIView, OTPVerificationMixin):
