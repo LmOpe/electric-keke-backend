@@ -396,6 +396,54 @@ class CashPaymentView(generics.UpdateAPIView):
     queryset = Wallet.objects.all()
     serializer_class = WalletBalanceSerializer
 
+    @swagger_auto_schema(
+        operation_description="Update the rider's wallet balance for a cash payment. "
+                              "Riders request means payment is disputed hence, reverse the withdrawal; users request withdraws the\
+                                  commission of the ride from the rider's wallet plus a notification sent to the rider.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'amount': openapi.Schema(type=openapi.TYPE_NUMBER, description='Amount paid in cash'),
+            },
+            required=['amount']
+        ),
+        security=[{'Bearer': []}],
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="Wallet updated successfully",
+                examples={
+                    "application/json": {
+                        "balance": "new_balance"
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Invalid amount or bad request",
+                examples={
+                    "application/json": {
+                        "detail": "Invalid amount provided."
+                    }
+                }
+            ),
+            status.HTTP_401_UNAUTHORIZED: openapi.Response(
+                description="Unauthorized",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            ),
+            status.HTTP_404_NOT_FOUND: openapi.Response(
+                description="Booking not found",
+                examples={
+                    "application/json": {
+                        "detail": "Booking with the given ID does not exist."
+                    }
+                }
+            ),
+        }
+    )
+
     def get_object(self):
         queryset = self.get_queryset()
         look_up_value = self.kwargs[self.lookup_field]
