@@ -74,8 +74,8 @@ class Booking(models.Model):
 
 class Wallet(models.Model):
     rider = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.CASCADE, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
         related_name="rider_wallet"
     )
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
@@ -98,7 +98,7 @@ class Wallet(models.Model):
         self.save()
 
     def __str__(self):
-        return f"Wallet of {self.rider.username} - Balance: {self.balance}"
+        return f"Wallet of {self.rider.fullname} - Balance: {self.balance}"
     
 class RideChatMessage(models.Model):
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="chat_messages")

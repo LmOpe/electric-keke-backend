@@ -8,7 +8,7 @@ from rest_framework import serializers
 from users.models import User
 from ecoride.utils import send_notification
 
-from .models import Booking
+from .models import Booking, Wallet
 
 class RiderSerializer(serializers.ModelSerializer):
     """
@@ -78,3 +78,12 @@ class BookingStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = ['status']
+
+class WalletBalanceSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating rider's wallet balance
+    """
+    class Meta:
+        model = Wallet
+        fields = ['balance']
+        read_only_fields = ['balance']
