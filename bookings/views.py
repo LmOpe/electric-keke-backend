@@ -71,7 +71,11 @@ class AvailableRidersListView(generics.ListAPIView):
 
     def get_queryset(self):
         # Assuming `is_active` is used to determine if a rider is available
-        return User.objects.filter(is_active=True, role='Rider')
+        return User.objects.filter(
+            is_active=True, 
+            role='Rider', 
+            rider_wallet__balance__gt=-5000
+            )
 
 # Create a new booking (either ride or delivery)
 class BookingCreateView(generics.CreateAPIView):
@@ -413,6 +417,8 @@ class CashPaymentView(generics.UpdateAPIView):
         user = self.request.user
         instance = serializer.save()
         amount = self.request.data.get("amount")
+        look_up_value = self.kwargs[self.lookup_field]
+        booking = Booking.objects.get(id= look_up_value)
         if amount is not None:
             try:
                 amount = float(amount)
@@ -421,6 +427,13 @@ class CashPaymentView(generics.UpdateAPIView):
                     instance.deposit(commission)
                 elif user.role == "User":
                     instance.withdraw(commission)
+                    notification_data = {
+                        'type': 'payment_by_cash',
+                        'booking_id': booking.id,
+                        'message': f"Please confirm your passenger {booking.user.fullname} for booking {booking.id}\
+                            has paid the sum of {amount}",
+                    }
+                    send_notification(booking.rider.id, notification_data)
             except ValueError as exc:
                 raise ValueError("Invalid amount provided") from exc
         else:
