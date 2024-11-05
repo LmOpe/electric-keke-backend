@@ -820,7 +820,7 @@ class Profile(APIView):
             
         check_and_change("fullname", fullname, user)
         check_and_change("email", email, user)
-        check_and_change("phone_number", phone, user)
+        check_and_change("phone", phone, user)
         check_and_change("address", address, user)
         check_and_change("state_of_residence", state, user)
 
