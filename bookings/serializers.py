@@ -6,7 +6,7 @@ All serializers for bookings app
 from rest_framework import serializers
 
 from users.models import User
-from ecoride.utils import send_notification
+from ecoride.utils import send_notification, create_payment_reference
 
 from .models import Booking, Wallet
 
@@ -37,7 +37,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = ['id', 'booking_type', 'origin', 'destination', 'price',\
-                  'package_details', 'status']
+                  'package_details', 'status', "payment_reference"]
 
     def create(self, validated_data):
         user = self.context['request'].user
@@ -52,6 +52,9 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
         # Create the booking
         booking = super().create(validated_data)
+        payment_reference = create_payment_reference(booking.id)
+        booking.payment_reference = payment_reference
+        booking.save()
 
         notification_data = {
             'type': 'new_booking_notification',
@@ -60,6 +63,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             'destination': booking.destination,
             'origin': booking.origin,
             'price': str(booking.price),
+            'payment_reference': booking.payment_reference,
             'package_details': booking.package_details,
             'passenger_name': booking.user.fullname,
             'passenger_email': booking.user.email,

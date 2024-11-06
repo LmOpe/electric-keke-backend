@@ -38,7 +38,9 @@ class Booking(models.Model):
     rider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,\
                               related_name='bookings_as_rider')
     booking_type = models.CharField(choices=BOOKING_TYPE_CHOICES, max_length=10)
+    payment_reference = models.CharField(max_length=50, null=True, blank=True, unique=True)
     status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default='pending')
+    paid = models.BooleanField(default=False)
     origin = models.CharField(max_length=255)
     destination = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)

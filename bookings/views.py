@@ -8,13 +8,12 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 from django.shortcuts import get_object_or_404
-
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import NotFound, ValidationError
 
-from ecoride.utils import send_notification
+from ecoride.utils import send_notification, verify_monnnify_webhook
 
 from users.models import User
 from users.permissions import IsUser
@@ -70,7 +69,6 @@ class AvailableRidersListView(generics.ListAPIView):
     )
 
     def get_queryset(self):
-        # Assuming `is_active` is used to determine if a rider is available
         return User.objects.filter(
             is_active=True, 
             role='Rider', 
@@ -471,10 +469,17 @@ class CashPaymentView(generics.UpdateAPIView):
             try:
                 amount = float(amount)
                 commission = Decimal(amount * 0.3)
+
                 if user.role == "Rider":
                     instance.deposit(commission)
+                    booking.paid = False
+                    booking.save()
+
                 elif user.role == "User":
                     instance.withdraw(commission)
+                    booking.paid = True
+                    booking.save()
+
                     notification_data = {
                         'type': 'payment_by_cash',
                         'booking_id': booking.id,
@@ -488,3 +493,62 @@ class CashPaymentView(generics.UpdateAPIView):
             raise ValidationError("Amount cannot be none")
         
         return super().perform_update(serializer)
+
+class MonnifyTransactionWebhookView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
+    queryset = Booking.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        payload_in_bytes = request.body
+        monnify_hash = request.META["HTTP_MONNIFY_SIGNATURE"]
+        confirmation = verify_monnnify_webhook(payload_in_bytes,
+                                               monnify_hash,
+                                               request.META)
+        print("CONFIRMATION", confirmation)
+        if not confirmation:
+            return Response(
+                {
+                    "status":"failed", 
+                    "msg":"Webhook does not appear to come from Monnify"
+                },
+                status=status.HTTP_400_BAD_REQUEST)
+        if confirmation:
+            data = request.data.get("eventData")
+            event_type = request.data.get("eventType")
+            
+            if event_type == "SUCCESSFUL_TRANSACTION":
+                payment_status = data['paymentStatus']
+                amount_paid = float(data['amountPaid'])
+                payment_reference = data['paymentReference']
+                rider_commission = Decimal(amount_paid - (amount_paid * 0.3))
+                
+                if payment_status == "PAID":
+                    try:
+                        booking = Booking.objects.get(payment_reference=payment_reference)
+                    except Booking.DoesNotExist:
+                        return Response(
+                            {
+                                "status":"failed", 
+                                "msg":"Product or service with the payment reference\
+                                    could not be found"
+                            },
+                            status=status.HTTP_400_BAD_REQUEST)
+                    
+                    wallet = booking.rider.rider_wallet.first()
+                    wallet.deposit(rider_commission)
+                    wallet.save()
+                    booking.paid = True
+                    booking.save()
+
+            elif event_type == "SUCCESSFUL_DISBURSEMENT":
+                pass
+
+            elif event_type == "FAILED_DISBURSEMEN":
+                pass
+
+        return Response(
+            {
+                "status": "success",
+                "msg": "payment processed successfully"
+            }, 
+            status=status.HTTP_200_OK)

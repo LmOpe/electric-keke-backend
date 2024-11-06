@@ -2,9 +2,12 @@
 
 import hashlib
 import base64
+import uuid
+import hmac
 
 from django.core.mail import send_mail
 from django.utils.html import strip_tags
+from django.conf import settings
 
 from channels.layers import get_channel_layer
 
@@ -85,4 +88,45 @@ def send_notification(user_id, message):
             'type': 'send_notification',
             'message': message
         }
+    )
+
+def create_payment_reference(ride_id):
+    return f"ride_{ride_id}_{uuid.uuid4().hex}"
+
+def verify_hash(payload_in_bytes, monnify_hash):
+    """
+    Recieves the monnify payload in bytes and perform a SHA-512 hash
+    with your secret key which is also encoded in byte.
+    uses hmac.compare_digest rather than "=" sign as the former helps
+    to prevent timing attacks.
+    """
+    secret_key_bytes = settings.MONNIFY_SECRET.encode("utf-8")
+    hash_in_bytes = hmac.new(
+        secret_key_bytes, msg=payload_in_bytes, digestmod=hashlib.sha512
+    )
+    hash_in_hex = hash_in_bytes.hexdigest()
+    return hmac.compare_digest(hash_in_hex, monnify_hash)
+
+def get_sender_ip(headers):
+    """
+    Get senders' IP address, by first checking if your API server
+    is behind a proxy by checking for HTTP_X_FORWARDED_FOR
+    if not gets sender actual IP address using REMOTE_ADDR
+    """
+    x_forwarded_for = headers.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0]
+   
+    return headers.get("REMOTE_ADDR")
+
+def verify_monnnify_webhook(payload_in_bytes, monnify_hash, headers):
+    """
+    The interface that does the verification by calling necessary functions.
+    Though everything has been tested to work well, but if you have issues
+    with this function returning False, you can remove the get_sender_ip
+    function to be sure that the verify_hash is working, then you can check
+    what header contains the IP address.
+    """
+    return get_sender_ip(headers) == settings.MONNIFY_IP and verify_hash(
+        payload_in_bytes, monnify_hash
     )
