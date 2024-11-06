@@ -504,7 +504,6 @@ class MonnifyTransactionWebhookView(generics.CreateAPIView):
         confirmation = verify_monnnify_webhook(payload_in_bytes,
                                                monnify_hash,
                                                request.META)
-        print("CONFIRMATION", confirmation)
         if not confirmation:
             return Response(
                 {
