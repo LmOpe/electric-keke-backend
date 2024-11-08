@@ -4,6 +4,7 @@ import hashlib
 import base64
 import uuid
 import hmac
+import requests
 
 from django.core.mail import send_mail
 from django.utils.html import strip_tags
@@ -130,3 +131,26 @@ def verify_monnnify_webhook(payload_in_bytes, monnify_hash, headers):
     return get_sender_ip(headers) == settings.MONNIFY_IP and verify_hash(
         payload_in_bytes, monnify_hash
     )
+
+def login_to_monnify():
+    api_key = settings.MONNIFY_KEY
+    secret = settings.MONNIFY_SECRET
+    base_url = settings.MONNIFY_URL
+
+    url = f"{base_url}/api/v1/auth/login"
+
+    credentials = f"{api_key}:{secret}"
+    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+
+    headers = {
+            "Authorization": f"Basic {encoded_credentials}"
+        }
+
+    response = requests.post(url, headers=headers)
+
+    if response.status_code == 200 and response.json().get("requestSuccessful"):
+        access_token = response.json()["responseBody"]["accessToken"]
+        return access_token
+
+    print(f"Error: {response.json().get('responseMessage', 'Unknown error')}")
+    return None

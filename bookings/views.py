@@ -2,18 +2,23 @@
 Bookings related views
 """
 # pylint: disable=no-member
+import requests
+
 from decimal import Decimal
 
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 from django.shortcuts import get_object_or_404
+from django.conf import settings
+
 from rest_framework import generics, status
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import NotFound, ValidationError
 
-from ecoride.utils import send_notification, verify_monnnify_webhook
+from ecoride.utils import send_notification, verify_monnnify_webhook, login_to_monnify
 
 from users.models import User
 from users.permissions import IsUser
@@ -551,3 +556,83 @@ class MonnifyTransactionWebhookView(generics.CreateAPIView):
                 "msg": "payment processed successfully"
             }, 
             status=status.HTTP_200_OK)
+
+class InitializeTransactionAndChargeCardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        base_url = settings.MONNIFY_URL
+        data = request.data
+        amount = data.get("amount")
+        customer_name = request.user.fullname
+        customer_email = request.user.email
+        payment_reference = data.get("payment_reference")
+        payment_description = "Payment for Ride"
+        currency_code = data.get("currency_code", "NGN")
+        card_details = data.get("card")
+
+        initialize_payload = {
+            "amount": amount,
+            "customerName": customer_name,
+            "customerEmail": customer_email,
+            "paymentReference": payment_reference,
+            "paymentDescription": payment_description,
+            "currencyCode": currency_code,
+            "contractCode": settings.MONNIFY_CONTRACT_CODE,
+            "paymentMethods": ["CARD", "ACCOUNT_TRANSFER"]
+        }
+
+        access_token = login_to_monnify()
+        if not access_token:
+            return Response({"error": "Unable to authenticate"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        headers = {"Authorization": f"Bearer {access_token}"}
+        init_url = f"{base_url}/api/v1/merchant/transactions/init-transaction"
+        init_response = requests.post(init_url, json=initialize_payload, headers=headers)
+
+        if init_response.status_code == 401:
+            access_token = login_to_monnify()
+            if not access_token:
+                return Response({"error": "Unable to authenticate"}, status=status.HTTP_401_UNAUTHORIZED)
+            headers["Authorization"] = f"Bearer {access_token}"
+            init_response = requests.post(init_url, json=initialize_payload, headers=headers)
+
+        init_data = init_response.json()
+        if init_response.status_code != 200 or not init_data.get("requestSuccessful"):
+            return Response(init_data, status=status.HTTP_400_BAD_REQUEST)
+        
+        transaction_reference = init_data["responseBody"]["transactionReference"]
+
+        charge_payload = {
+            "transactionReference": transaction_reference,
+            "collectionChannel": "API_NOTIFICATION",
+            "card": {
+                "number": card_details["number"],
+                "expiryMonth": card_details["expiry_month"],
+                "expiryYear": card_details["expiry_year"],
+                "pin": card_details["pin"],
+                "cvv": card_details["cvv"]
+            }   
+        }
+
+        charge_url = f"{base_url}/api/v1/merchant/cards/charge"
+        charge_response = requests.post(charge_url, json=charge_payload, headers=headers)
+
+        if charge_response.status_code == 401:
+            access_token = login_to_monnify()
+            if not access_token:
+                return Response({"error": "Unable to authenticate"}, status=status.HTTP_401_UNAUTHORIZED)
+            headers["Authorization"] = f"Bearer {access_token}"
+            charge_response = requests.post(charge_url, json=charge_payload, headers=headers)
+
+        charge_data = charge_response.json()
+        if charge_response.status_code == 200 and charge_data.get("requestSuccessful"):
+            response_body = charge_data["responseBody"]
+            return Response({
+                "status": response_body["status"],
+                "amount": response_body["authorizedAmount"],
+                "paymentReference": response_body["paymentReference"],
+                "transactionReference": response_body["transactionReference"]
+            }, status=status.HTTP_200_OK)
+        
+        return Response(charge_data, status=status.HTTP_400_BAD_REQUEST)

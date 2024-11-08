@@ -4,7 +4,7 @@ from django.urls import path, re_path
 
 from .views import AvailableRidersListView, BookingCreateView,\
     BookingListView, BookingStatusUpdateView, CashPaymentView,\
-    MonnifyTransactionWebhookView
+    MonnifyTransactionWebhookView, InitializeTransactionAndChargeCardView
 
 from . import consumers
 
@@ -15,7 +15,8 @@ urlpatterns = [
     path('<int:pk>/status/', BookingStatusUpdateView.as_view(), \
          name='booking-status-update'),
     path('payment/cash/<int:pk>/', CashPaymentView.as_view(), name="pay-with-cash"),
-    path('webhook/monnify/transaction/', MonnifyTransactionWebhookView.as_view(), name="pay-with-card")
+    path('webhook/monnify/transaction/', MonnifyTransactionWebhookView.as_view(), name="payment-webhook"),
+    path("payment/card/", InitializeTransactionAndChargeCardView.as_view(), name='pay-with-card'),
 ]
 
 websocket_urlpatterns = [
