@@ -91,8 +91,10 @@ def send_notification(user_id, message):
         }
     )
 
-def create_payment_reference(ride_id):
-    return f"ride_{ride_id}_{uuid.uuid4().hex}"
+def create_payment_reference(payment_type, ride_id=None):
+    if ride_id:
+        return f"{payment_type}_{ride_id}_{uuid.uuid4().hex}"
+    return f"{payment_type}_{uuid.uuid4().hex}"
 
 def verify_hash(payload_in_bytes, monnify_hash):
     """

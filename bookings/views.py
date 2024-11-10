@@ -2,8 +2,6 @@
 Bookings related views
 """
 # pylint: disable=no-member
-import requests
-
 from decimal import Decimal
 
 from drf_yasg import openapi
@@ -15,17 +13,18 @@ from django.conf import settings
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import NotFound, ValidationError
 
-from ecoride.utils import send_notification, verify_monnnify_webhook, login_to_monnify
+from ecoride.utils import send_notification, create_payment_reference
 
 from users.models import User
 from users.permissions import IsUser
 
-from .models import Booking, Wallet
+from .models import Booking, Wallet, WithdrawalRequest
 from .serializers import BookingSerializer, BookingCreateSerializer, BookingStatusUpdateSerializer,\
-                        RiderSerializer, WalletBalanceSerializer
+                        RiderSerializer, WalletBalanceSerializer, RequestWithdrawalSerializer
+from.mixins import MonnifyMixin, MonnifyWebhookMixin
 
 class AvailableRidersListView(generics.ListAPIView):
     """
@@ -499,69 +498,82 @@ class CashPaymentView(generics.UpdateAPIView):
         
         return super().perform_update(serializer)
 
-class MonnifyTransactionWebhookView(generics.CreateAPIView):
-    permission_classes = [AllowAny]
+class MonnifyTransactionWebhookView(MonnifyWebhookMixin, generics.CreateAPIView):
     queryset = Booking.objects.all()
 
     def post(self, request, *args, **kwargs):
-        payload_in_bytes = request.body
-        monnify_hash = request.META["HTTP_MONNIFY_SIGNATURE"]
-        confirmation = verify_monnnify_webhook(payload_in_bytes,
-                                               monnify_hash,
-                                               request.META)
-        if not confirmation:
-            return Response(
-                {
-                    "status":"failed", 
-                    "msg":"Webhook does not appear to come from Monnify"
-                },
-                status=status.HTTP_400_BAD_REQUEST)
-        if confirmation:
-            data = request.data.get("eventData")
-            event_type = request.data.get("eventType")
-            
-            if event_type == "SUCCESSFUL_TRANSACTION":
-                payment_status = data['paymentStatus']
-                amount_paid = float(data['amountPaid'])
-                payment_reference = data['paymentReference']
-                rider_commission = Decimal(amount_paid - (amount_paid * 0.3))
-                
-                if payment_status == "PAID":
-                    try:
-                        booking = Booking.objects.get(payment_reference=payment_reference)
-                    except Booking.DoesNotExist:
-                        return Response(
-                            {
-                                "status":"failed", 
-                                "msg":"Product or service with the payment reference\
-                                    could not be found"
-                            },
-                            status=status.HTTP_400_BAD_REQUEST)
-                    
-                    wallet = booking.rider.rider_wallet.first()
-                    wallet.deposit(rider_commission)
-                    wallet.save()
-                    booking.paid = True
-                    booking.save()
+        if not self.verify_webhook(request):
+            return self.handle_verification_failure()
 
-            elif event_type == "SUCCESSFUL_DISBURSEMENT":
-                pass
+        data = request.data.get("eventData")
+        event_type = request.data.get("eventType")
 
-            elif event_type == "FAILED_DISBURSEMEN":
-                pass
+        if event_type == "SUCCESSFUL_TRANSACTION":
+            payment_status = data['paymentStatus']
+            amount_paid = Decimal(data['amountPaid'])
+            payment_reference = data['paymentReference']
+            rider_commission = amount_paid - (amount_paid * Decimal(0.3))
 
-        return Response(
-            {
-                "status": "success",
-                "msg": "payment processed successfully"
-            }, 
-            status=status.HTTP_200_OK)
+            if payment_status == "PAID":
+                try:
+                    booking = Booking.objects.get(payment_reference=payment_reference)
+                except Booking.DoesNotExist:
+                    return Response(
+                        {
+                            "status": "failed",
+                            "msg": "Product or service with the payment reference could not be found"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-class InitializeTransactionAndChargeCardView(APIView):
+                wallet = booking.rider.rider_wallet.first()
+                wallet.deposit(rider_commission)
+                wallet.save()
+                booking.paid = True
+                booking.save()
+
+        return self.handle_success_response()
+
+class MonnifyDisbursementWebhookView(MonnifyWebhookMixin, generics.CreateAPIView):
+    queryset = Booking.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        if not self.verify_webhook(request):
+            return self.handle_verification_failure()
+
+        data = request.data.get("eventData")
+        event_type = request.data.get("eventType")
+
+        if event_type == "SUCCESSFUL_DISBURSEMENT":
+            disbursement_status = data['status']
+            amount = Decimal(data['amount'])
+            disbursement_reference = data['reference']
+
+            if disbursement_status == "SUCCESS":
+                try:
+                    withdrawal_request = WithdrawalRequest.objects.get(reference=disbursement_reference)
+                except WithdrawalRequest.DoesNotExist:
+                    return Response(
+                        {
+                            "status": "failed",
+                            "msg": "Product or service with the disbursement reference could not be found"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                rider_wallet = withdrawal_request.rider.rider_wallet.first()
+                rider_wallet.withdraw(amount)
+                rider_wallet.save()
+                withdrawal_request.completed = True
+                withdrawal_request.save()
+
+        return self.handle_success_response()
+
+class InitializeTransactionAndChargeCardView(MonnifyMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        base_url = settings.MONNIFY_URL
+        base_url = self.base_url
         data = request.data
         amount = data.get("amount")
         customer_name = request.user.fullname
@@ -582,22 +594,10 @@ class InitializeTransactionAndChargeCardView(APIView):
             "paymentMethods": ["CARD", "ACCOUNT_TRANSFER"]
         }
 
-        access_token = login_to_monnify()
-        if not access_token:
-            return Response({"error": "Unable to authenticate"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        headers = {"Authorization": f"Bearer {access_token}"}
         init_url = f"{base_url}/api/v1/merchant/transactions/init-transaction"
-        init_response = requests.post(init_url, json=initialize_payload, headers=headers)
-
-        if init_response.status_code == 401:
-            access_token = login_to_monnify()
-            if not access_token:
-                return Response({"error": "Unable to authenticate"}, status=status.HTTP_401_UNAUTHORIZED)
-            headers["Authorization"] = f"Bearer {access_token}"
-            init_response = requests.post(init_url, json=initialize_payload, headers=headers)
-
+        init_response = self.authenticate_and_post(init_url, initialize_payload)
         init_data = init_response.json()
+
         if init_response.status_code != 200 or not init_data.get("requestSuccessful"):
             return Response(init_data, status=status.HTTP_400_BAD_REQUEST)
         
@@ -612,20 +612,13 @@ class InitializeTransactionAndChargeCardView(APIView):
                 "expiryYear": card_details["expiry_year"],
                 "pin": card_details["pin"],
                 "cvv": card_details["cvv"]
-            }   
+            }
         }
 
         charge_url = f"{base_url}/api/v1/merchant/cards/charge"
-        charge_response = requests.post(charge_url, json=charge_payload, headers=headers)
-
-        if charge_response.status_code == 401:
-            access_token = login_to_monnify()
-            if not access_token:
-                return Response({"error": "Unable to authenticate"}, status=status.HTTP_401_UNAUTHORIZED)
-            headers["Authorization"] = f"Bearer {access_token}"
-            charge_response = requests.post(charge_url, json=charge_payload, headers=headers)
-
+        charge_response = self.authenticate_and_post(charge_url, charge_payload)
         charge_data = charge_response.json()
+
         if charge_response.status_code == 200 and charge_data.get("requestSuccessful"):
             response_body = charge_data["responseBody"]
             return Response({
@@ -636,3 +629,97 @@ class InitializeTransactionAndChargeCardView(APIView):
             }, status=status.HTTP_200_OK)
         
         return Response(charge_data, status=status.HTTP_400_BAD_REQUEST)
+
+class RequestWithdrawal(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = WithdrawalRequest.objects.filter(completed = False)
+    serializer_class = RequestWithdrawalSerializer
+
+class InitiateDisbursement(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        account_number = settings.MONNIFY_ACCOUNT_NUMBER
+        data = request.data
+        batch_reference = create_payment_reference("batch")
+        payments = data.get("payments")
+
+        batch_payload = {
+            "title": "Payment for riders",
+            "batchReference": batch_reference,
+            "narration": "Rider's payment",
+            "sourceAccountNumber": account_number,
+            "onValidationFailure": "CONTINUE",
+            "notificationInterval": 25,
+            "transactionList": payments
+        }
+
+        url = f"{self.base_url}/api/v2/disbursements/batch"
+        response = self.authenticate_and_post(url, batch_payload)
+        response_data = response.json()
+
+        if response.status_code != 200 or not response_data.get("requestSuccessful"):
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        response_body = response_data["responseBody"]
+
+        return Response({
+            "status": response_body["batchStatus"],
+            "amount": response_body["totalAmount"],
+            "reference": response_body["batchReference"],
+        }, status=status.HTTP_200_OK)
+
+
+class AuthorizeDisbursement(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        data = request.data
+        reference = data.get("reference")
+        code = data.get("code")
+
+        payload = {
+            "reference": reference,
+            "authorizationCode": code
+        }
+
+        url = f"{self.base_url}/api/v2/disbursements/batch/validate-otp"
+        response = self.authenticate_and_post(url, payload)
+        response_data = response.json()
+
+        if response.status_code != 200 or not response_data.get("requestSuccessful"):
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        response_body = response_data["responseBody"]
+
+        return Response({
+            "status": response_body["batchStatus"],
+            "amount": response_body["totalAmount"],
+            "reference": response_body["batchReference"],
+        }, status=status.HTTP_200_OK)
+
+class RequestNewOTP(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        data = request.data
+        reference = data.get("reference")
+
+        payload = {
+            "batchReference": reference,
+        }
+
+        url = f"{self.base_url}/api/v2/disbursements/batch/resend-otp"
+        response = self.authenticate_and_post(url, payload)
+        response_data = response.json()
+
+        if response.status_code != 200 or not response_data.get("requestSuccessful"):
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        response_body = response_data["responseBody"]
+
+        return Response({
+            "message": response_data["responseMessage"],
+            "email_recipients": response_body["emailRecipients"],
+            "message": response_body["message"],
+        }, status=status.HTTP_200_OK)

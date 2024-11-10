@@ -110,3 +110,16 @@ class RideChatMessage(models.Model):
 
     def __str__(self):
         return f"Message from {self.sender} in booking {self.booking.id}"
+
+class WithdrawalRequest(models.Model):
+    rider = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="rider_withdrawal_requests"
+    )
+    completed = models.BooleanField(default=False)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    reference = models.CharField(max_length=70)
+    bank_code = models.CharField(max_length=5)
+    account_number = models.CharField(max_length=12)
+    currency = models.CharField(max_length=5)

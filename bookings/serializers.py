@@ -8,7 +8,7 @@ from rest_framework import serializers
 from users.models import User
 from ecoride.utils import send_notification, create_payment_reference
 
-from .models import Booking, Wallet
+from .models import Booking, Wallet, WithdrawalRequest
 
 class RiderSerializer(serializers.ModelSerializer):
     """
@@ -52,7 +52,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
         # Create the booking
         booking = super().create(validated_data)
-        payment_reference = create_payment_reference(booking.id)
+        payment_reference = create_payment_reference("ride", booking.id)
         booking.payment_reference = payment_reference
         booking.save()
 
@@ -91,3 +91,25 @@ class WalletBalanceSerializer(serializers.ModelSerializer):
         model = Wallet
         fields = ['balance']
         read_only_fields = ['balance']
+
+class RequestWithdrawalSerializer(serializers.ModelSerializer):
+    rider_fullname = serializers.CharField(source='rider.fullname', read_only=True)
+    reference = serializers.ReadOnlyField()
+    completed = serializers.ReadOnlyField()
+
+    class Meta:
+        model = WithdrawalRequest
+
+        fields = ['rider_fullname', 'amount', 'completed', 'reference', 'bank_code',\
+                  'account_number', 'currency']
+
+    def create(self, validated_data):
+        rider = self.context['request'].user
+        if rider.rider_wallet.first().balance < validated_data['amount']:
+            raise serializers.ValidationError("Requested amount must be less than or equal to wallet balance!!")
+
+        payment_reference = create_payment_reference("disbursement")
+        validated_data['rider'] = rider
+        validated_data['reference'] = payment_reference
+
+        return super().create(validated_data)

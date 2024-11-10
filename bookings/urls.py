@@ -4,7 +4,9 @@ from django.urls import path, re_path
 
 from .views import AvailableRidersListView, BookingCreateView,\
     BookingListView, BookingStatusUpdateView, CashPaymentView,\
-    MonnifyTransactionWebhookView, InitializeTransactionAndChargeCardView
+    MonnifyTransactionWebhookView, InitializeTransactionAndChargeCardView,\
+    MonnifyDisbursementWebhookView, RequestWithdrawal, InitiateDisbursement,\
+    AuthorizeDisbursement, RequestNewOTP
 
 from . import consumers
 
@@ -16,7 +18,12 @@ urlpatterns = [
          name='booking-status-update'),
     path('payment/cash/<int:pk>/', CashPaymentView.as_view(), name="pay-with-cash"),
     path('webhook/monnify/transaction/', MonnifyTransactionWebhookView.as_view(), name="payment-webhook"),
+    path('webhook/monnify/disbursement/', MonnifyDisbursementWebhookView.as_view(), name="disbursement-webhook"),
     path("payment/card/", InitializeTransactionAndChargeCardView.as_view(), name='pay-with-card'),
+    path('payment/withdrawal/', RequestWithdrawal.as_view(), name="withdraw-fund"),
+    path('riders/disbursement/', InitiateDisbursement.as_view(), name="riders-bulk-payment"),
+    path("riders/disbursement/authorization/", AuthorizeDisbursement.as_view(), name='authorize-disbursement'),
+    path("riders/disbursement/resend-otp/", RequestNewOTP.as_view(), name='resend-otp'),
 ]
 
 websocket_urlpatterns = [
