@@ -719,7 +719,7 @@ class RequestNewOTP(MonnifyMixin, APIView):
         response_body = response_data["responseBody"]
 
         return Response({
-            "message": response_data["responseMessage"],
+            "reference": payload['batchReference'],
             "email_recipients": response_body["emailRecipients"],
             "message": response_body["message"],
         }, status=status.HTTP_200_OK)
