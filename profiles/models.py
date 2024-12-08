@@ -25,4 +25,4 @@ class PaymentDetails(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.account_number}"
+        return f"{self.user.fullname} - {self.account_number}"

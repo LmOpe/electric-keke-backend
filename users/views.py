@@ -682,6 +682,10 @@ class GetAuthUser(APIView):
             'address': user.address,
             'state_of_residence': user.state_of_residence,
             'role': user.role,
+            'wallet_balance': user.rider_wallet.first().balance if user.role == "Rider" else "Not applicable",
+            'avatar': user.avatar_url,
+            'driver_license_front': user.driver_license_front,
+            'driver_license_back': user.driver_license_back
             
         }
         return Response(user_data, status=status.HTTP_200_OK)
@@ -812,16 +816,21 @@ class Profile(APIView):
         phone = request.data.get("phone")
         address = request.data.get("address")
         state = request.data.get("state")
+        avatar_url = request.data.get("avatar_url")
+        driver_license_front = request.data.get("driver_license_front")
+        driver_license_back = request.data.get("driver_license_back")
         user = request.user
-
         def check_and_change(field_name, new_value, user):
             if new_value is not None and hasattr(user, field_name):
                 setattr(user, field_name, new_value)
             
         check_and_change("fullname", fullname, user)
         check_and_change("email", email, user)
-        check_and_change("phone_number", phone, user)
+        check_and_change("phone", phone, user)
         check_and_change("address", address, user)
+        check_and_change("avatar_url", avatar_url, user)
+        check_and_change("driver_license_front", driver_license_front, user)
+        check_and_change("driver_license_back", driver_license_back, user)
         check_and_change("state_of_residence", state, user)
 
         user.save()

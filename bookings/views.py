@@ -8,20 +8,23 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 
 from rest_framework import generics, status
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import NotFound, ValidationError
 
-from ecoride.utils import send_notification
+from ecoride.utils import send_notification, create_payment_reference
 
 from users.models import User
 from users.permissions import IsUser
 
-from .models import Booking, Wallet
+from .models import Booking, Wallet, WithdrawalRequest
 from .serializers import BookingSerializer, BookingCreateSerializer, BookingStatusUpdateSerializer,\
-                        RiderSerializer, WalletBalanceSerializer
+                        RiderSerializer, WalletBalanceSerializer, RequestWithdrawalSerializer
+from.mixins import MonnifyMixin, MonnifyWebhookMixin
 
 class AvailableRidersListView(generics.ListAPIView):
     """
@@ -70,7 +73,6 @@ class AvailableRidersListView(generics.ListAPIView):
     )
 
     def get_queryset(self):
-        # Assuming `is_active` is used to determine if a rider is available
         return User.objects.filter(
             is_active=True, 
             role='Rider', 
@@ -194,6 +196,7 @@ class BookingListView(generics.ListAPIView):
                             "destination": "456 Elm Street",
                             "price": 10.50,
                             "status": "pending",
+                            "payment_method": "card",
                             "created_at": "2024-09-13T12:00:00Z",
                             "updated_at": "2024-09-13T12:00:00Z",
                             "package_details": None,
@@ -396,6 +399,54 @@ class CashPaymentView(generics.UpdateAPIView):
     queryset = Wallet.objects.all()
     serializer_class = WalletBalanceSerializer
 
+    @swagger_auto_schema(
+        operation_description="Update the rider's wallet balance for a cash payment. "
+                              "Riders request means payment is disputed hence, reverse the withdrawal; users request withdraws the\
+                                  commission of the ride from the rider's wallet plus a notification sent to the rider.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'amount': openapi.Schema(type=openapi.TYPE_NUMBER, description='Amount paid in cash'),
+            },
+            required=['amount']
+        ),
+        security=[{'Bearer': []}],
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="Wallet updated successfully",
+                examples={
+                    "application/json": {
+                        "balance": "new_balance"
+                    }
+                }
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                description="Invalid amount or bad request",
+                examples={
+                    "application/json": {
+                        "detail": "Invalid amount provided."
+                    }
+                }
+            ),
+            status.HTTP_401_UNAUTHORIZED: openapi.Response(
+                description="Unauthorized",
+                examples={
+                    "application/json": {
+                        "detail": "Authentication credentials were not provided."
+                    }
+                }
+            ),
+            status.HTTP_404_NOT_FOUND: openapi.Response(
+                description="Booking not found",
+                examples={
+                    "application/json": {
+                        "detail": "Booking with the given ID does not exist."
+                    }
+                }
+            ),
+        }
+    )
+
     def get_object(self):
         queryset = self.get_queryset()
         look_up_value = self.kwargs[self.lookup_field]
@@ -423,10 +474,18 @@ class CashPaymentView(generics.UpdateAPIView):
             try:
                 amount = float(amount)
                 commission = Decimal(amount * 0.3)
+
                 if user.role == "Rider":
                     instance.deposit(commission)
+                    booking.paid = False
+                    booking.save()
+
                 elif user.role == "User":
                     instance.withdraw(commission)
+                    booking.payment_method = "cash"
+                    booking.paid = True
+                    booking.save()
+
                     notification_data = {
                         'type': 'payment_by_cash',
                         'booking_id': booking.id,
@@ -440,3 +499,229 @@ class CashPaymentView(generics.UpdateAPIView):
             raise ValidationError("Amount cannot be none")
         
         return super().perform_update(serializer)
+
+class MonnifyTransactionWebhookView(MonnifyWebhookMixin, generics.CreateAPIView):
+    queryset = Booking.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        if not self.verify_webhook(request):
+            return self.handle_verification_failure()
+
+        data = request.data.get("eventData")
+        event_type = request.data.get("eventType")
+
+        if event_type == "SUCCESSFUL_TRANSACTION":
+            payment_status = data['paymentStatus']
+            amount_paid = Decimal(data['amountPaid'])
+            payment_reference = data['paymentReference']
+            rider_commission = amount_paid - (amount_paid * Decimal(0.3))
+
+            if payment_status == "PAID":
+                try:
+                    booking = Booking.objects.get(payment_reference=payment_reference)
+                except Booking.DoesNotExist:
+                    return Response(
+                        {
+                            "status": "failed",
+                            "msg": "Product or service with the payment reference could not be found"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                wallet = booking.rider.rider_wallet.first()
+                wallet.deposit(rider_commission)
+                wallet.save()
+                booking.paid = True
+                booking.save()
+
+        return self.handle_success_response()
+
+class MonnifyDisbursementWebhookView(MonnifyWebhookMixin, generics.CreateAPIView):
+    queryset = Booking.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        if not self.verify_webhook(request):
+            return self.handle_verification_failure()
+
+        data = request.data.get("eventData")
+        event_type = request.data.get("eventType")
+
+        if event_type == "SUCCESSFUL_DISBURSEMENT":
+            disbursement_status = data['status']
+            amount = Decimal(data['amount'])
+            disbursement_reference = data['reference']
+
+            if disbursement_status == "SUCCESS":
+                try:
+                    withdrawal_request = WithdrawalRequest.objects.get(reference=disbursement_reference)
+                except WithdrawalRequest.DoesNotExist:
+                    return Response(
+                        {
+                            "status": "failed",
+                            "msg": "Product or service with the disbursement reference could not be found"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                rider_wallet = withdrawal_request.rider.rider_wallet.first()
+                rider_wallet.withdraw(amount)
+                rider_wallet.save()
+                withdrawal_request.completed = True
+                withdrawal_request.save()
+
+        return self.handle_success_response()
+
+class InitializeTransactionAndChargeCardView(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        base_url = self.base_url
+        data = request.data
+        amount = data.get("amount")
+        customer_name = request.user.fullname
+        customer_email = request.user.email
+        payment_reference = data.get("payment_reference")
+        payment_description = "Payment for Ride"
+        currency_code = data.get("currency_code", "NGN")
+        card_details = data.get("card")
+
+        initialize_payload = {
+            "amount": amount,
+            "customerName": customer_name,
+            "customerEmail": customer_email,
+            "paymentReference": payment_reference,
+            "paymentDescription": payment_description,
+            "currencyCode": currency_code,
+            "contractCode": settings.MONNIFY_CONTRACT_CODE,
+            "paymentMethods": ["CARD", "ACCOUNT_TRANSFER"]
+        }
+
+        init_url = f"{base_url}/api/v1/merchant/transactions/init-transaction"
+        init_response = self.authenticate_and_post(init_url, initialize_payload)
+        init_data = init_response.json()
+
+        if init_response.status_code != 200 or not init_data.get("requestSuccessful"):
+            return Response(init_data, status=status.HTTP_400_BAD_REQUEST)
+        
+        transaction_reference = init_data["responseBody"]["transactionReference"]
+
+        charge_payload = {
+            "transactionReference": transaction_reference,
+            "collectionChannel": "API_NOTIFICATION",
+            "card": {
+                "number": card_details["number"],
+                "expiryMonth": card_details["expiry_month"],
+                "expiryYear": card_details["expiry_year"],
+                "pin": card_details["pin"],
+                "cvv": card_details["cvv"]
+            }
+        }
+
+        charge_url = f"{base_url}/api/v1/merchant/cards/charge"
+        charge_response = self.authenticate_and_post(charge_url, charge_payload)
+        charge_data = charge_response.json()
+
+        if charge_response.status_code == 200 and charge_data.get("requestSuccessful"):
+            response_body = charge_data["responseBody"]
+            return Response({
+                "status": response_body["status"],
+                "amount": response_body["authorizedAmount"],
+                "paymentReference": response_body["paymentReference"],
+                "transactionReference": response_body["transactionReference"]
+            }, status=status.HTTP_200_OK)
+        
+        return Response(charge_data, status=status.HTTP_400_BAD_REQUEST)
+
+class RequestWithdrawal(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = WithdrawalRequest.objects.filter(completed = False)
+    serializer_class = RequestWithdrawalSerializer
+
+class InitiateDisbursement(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        account_number = settings.MONNIFY_ACCOUNT_NUMBER
+        data = request.data
+        batch_reference = create_payment_reference("batch")
+        payments = data.get("payments")
+
+        batch_payload = {
+            "title": "Payment for riders",
+            "batchReference": batch_reference,
+            "narration": "Rider's payment",
+            "sourceAccountNumber": account_number,
+            "onValidationFailure": "CONTINUE",
+            "notificationInterval": 25,
+            "transactionList": payments
+        }
+
+        url = f"{self.base_url}/api/v2/disbursements/batch"
+        response = self.authenticate_and_post(url, batch_payload)
+        response_data = response.json()
+
+        if response.status_code != 200 or not response_data.get("requestSuccessful"):
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        response_body = response_data["responseBody"]
+
+        return Response({
+            "status": response_body["batchStatus"],
+            "amount": response_body["totalAmount"],
+            "reference": response_body["batchReference"],
+        }, status=status.HTTP_200_OK)
+
+
+class AuthorizeDisbursement(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        data = request.data
+        reference = data.get("reference")
+        code = data.get("code")
+
+        payload = {
+            "reference": reference,
+            "authorizationCode": code
+        }
+
+        url = f"{self.base_url}/api/v2/disbursements/batch/validate-otp"
+        response = self.authenticate_and_post(url, payload)
+        response_data = response.json()
+
+        if response.status_code != 200 or not response_data.get("requestSuccessful"):
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        response_body = response_data["responseBody"]
+
+        return Response({
+            "status": response_body["batchStatus"],
+            "amount": response_body["totalAmount"],
+            "reference": response_body["batchReference"],
+        }, status=status.HTTP_200_OK)
+
+class RequestNewOTP(MonnifyMixin, APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        data = request.data
+        reference = data.get("reference")
+
+        payload = {
+            "batchReference": reference,
+        }
+
+        url = f"{self.base_url}/api/v2/disbursements/batch/resend-otp"
+        response = self.authenticate_and_post(url, payload)
+        response_data = response.json()
+
+        if response.status_code != 200 or not response_data.get("requestSuccessful"):
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        response_body = response_data["responseBody"]
+
+        return Response({
+            "reference": payload['batchReference'],
+            "email_recipients": response_body["emailRecipients"],
+            "message": response_body["message"],
+        }, status=status.HTTP_200_OK)

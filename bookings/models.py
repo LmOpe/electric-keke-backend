@@ -38,13 +38,16 @@ class Booking(models.Model):
     rider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,\
                               related_name='bookings_as_rider')
     booking_type = models.CharField(choices=BOOKING_TYPE_CHOICES, max_length=10)
+    payment_reference = models.CharField(max_length=50, null=True, blank=True, unique=True)
     status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default='pending')
+    paid = models.BooleanField(default=False)
     origin = models.CharField(max_length=255)
     destination = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     package_details = models.TextField(null=True, blank=True)
+    payment_method = models.CharField(max_length=4, default="card")
 
     # Dispute fields
     is_disputed = models.BooleanField(default=False)
@@ -108,3 +111,16 @@ class RideChatMessage(models.Model):
 
     def __str__(self):
         return f"Message from {self.sender} in booking {self.booking.id}"
+
+class WithdrawalRequest(models.Model):
+    rider = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="rider_withdrawal_requests"
+    )
+    completed = models.BooleanField(default=False)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    reference = models.CharField(max_length=70)
+    bank_code = models.CharField(max_length=5)
+    account_number = models.CharField(max_length=12)
+    currency = models.CharField(max_length=5)

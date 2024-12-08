@@ -2,9 +2,13 @@
 
 import hashlib
 import base64
+import uuid
+import hmac
+import requests
 
 from django.core.mail import send_mail
 from django.utils.html import strip_tags
+from django.conf import settings
 
 from channels.layers import get_channel_layer
 
@@ -86,3 +90,69 @@ def send_notification(user_id, message):
             'message': message
         }
     )
+
+def create_payment_reference(payment_type, ride_id=None):
+    if ride_id:
+        return f"{payment_type}_{ride_id}_{uuid.uuid4().hex}"
+    return f"{payment_type}_{uuid.uuid4().hex}"
+
+def verify_hash(payload_in_bytes, monnify_hash):
+    """
+    Recieves the monnify payload in bytes and perform a SHA-512 hash
+    with your secret key which is also encoded in byte.
+    uses hmac.compare_digest rather than "=" sign as the former helps
+    to prevent timing attacks.
+    """
+    secret_key_bytes = settings.MONNIFY_SECRET.encode("utf-8")
+    hash_in_bytes = hmac.new(
+        secret_key_bytes, msg=payload_in_bytes, digestmod=hashlib.sha512
+    )
+    hash_in_hex = hash_in_bytes.hexdigest()
+    return hmac.compare_digest(hash_in_hex, monnify_hash)
+
+def get_sender_ip(headers):
+    """
+    Get senders' IP address, by first checking if your API server
+    is behind a proxy by checking for HTTP_X_FORWARDED_FOR
+    if not gets sender actual IP address using REMOTE_ADDR
+    """
+    x_forwarded_for = headers.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0]
+   
+    return headers.get("REMOTE_ADDR")
+
+def verify_monnnify_webhook(payload_in_bytes, monnify_hash, headers):
+    """
+    The interface that does the verification by calling necessary functions.
+    Though everything has been tested to work well, but if you have issues
+    with this function returning False, you can remove the get_sender_ip
+    function to be sure that the verify_hash is working, then you can check
+    what header contains the IP address.
+    """
+    return get_sender_ip(headers) == settings.MONNIFY_IP and verify_hash(
+        payload_in_bytes, monnify_hash
+    )
+
+def login_to_monnify():
+    api_key = settings.MONNIFY_KEY
+    secret = settings.MONNIFY_SECRET
+    base_url = settings.MONNIFY_URL
+
+    url = f"{base_url}/api/v1/auth/login"
+
+    credentials = f"{api_key}:{secret}"
+    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+
+    headers = {
+            "Authorization": f"Basic {encoded_credentials}"
+        }
+
+    response = requests.post(url, headers=headers)
+
+    if response.status_code == 200 and response.json().get("requestSuccessful"):
+        access_token = response.json()["responseBody"]["accessToken"]
+        return access_token
+
+    print(f"Error: {response.json().get('responseMessage', 'Unknown error')}")
+    return None
