@@ -196,6 +196,7 @@ class BookingListView(generics.ListAPIView):
                             "destination": "456 Elm Street",
                             "price": 10.50,
                             "status": "pending",
+                            "payment_method": "card",
                             "created_at": "2024-09-13T12:00:00Z",
                             "updated_at": "2024-09-13T12:00:00Z",
                             "package_details": None,
@@ -481,6 +482,7 @@ class CashPaymentView(generics.UpdateAPIView):
 
                 elif user.role == "User":
                     instance.withdraw(commission)
+                    booking.payment_method = "cash"
                     booking.paid = True
                     booking.save()
 

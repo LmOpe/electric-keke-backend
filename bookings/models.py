@@ -47,6 +47,7 @@ class Booking(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     package_details = models.TextField(null=True, blank=True)
+    payment_method = models.CharField(max_length=4, default="card")
 
     # Dispute fields
     is_disputed = models.BooleanField(default=False)
