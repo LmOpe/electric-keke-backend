@@ -2,18 +2,21 @@
 
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
+from django.shortcuts import get_object_or_404
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from bookings.models import Booking
 
-from .serializers import EarningsSerializer
+from .models import NotificationMessage
+from .serializers import EarningsSerializer, NotificationSerializer
 
 User = get_user_model()
 
@@ -237,3 +240,62 @@ class EarningsListView(ListAPIView):
         # Prepare response data using serializer
         serializer = EarningsSerializer(queryset, many=True)
         return Response(serializer.data)
+
+class AdminNotificationView(APIView):
+    """
+    View for listing unread notifications and updating the 'is_read' field of a single notification.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @swagger_auto_schema(
+        operation_summary="List all unread notifications",
+        operation_description="Returns a list of all unread notifications. Accessible only to admins.",
+        responses={
+            200: openapi.Response(
+                description="List of unread notifications",
+                examples={
+                    "application/json": [
+                        {
+                            "id": 1,
+                            "title": "New User Registered",
+                            "message": "A new user has signed up.",
+                            "is_read": False,
+                            "created_at": "2024-06-01T12:00:00Z"
+                        },
+                        {
+                            "id": 2,
+                            "title": "System Update",
+                            "message": "Scheduled maintenance at midnight.",
+                            "is_read": False,
+                            "created_at": "2024-06-01T15:00:00Z"
+                        }
+                    ]
+                }
+            ),
+            403: "Forbidden. Only accessible by admins.",
+            401: "Unauthorized. User not authenticated."
+        }
+    )
+
+    def get(self, request, *args, **kwargs):
+        """
+        List all unread notifications.
+        """
+        queryset = NotificationMessage.objects.filter(is_read=False)
+        serializer = NotificationSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        """
+        Update the 'is_read' field of a single notification.
+        """
+        notification_id = kwargs.get("pk")
+        notification = get_object_or_404(NotificationMessage, id=notification_id)
+
+        # Update 'is_read' field
+        notification.is_read = True
+        notification.save()
+
+        # Return updated notification
+        serializer = NotificationSerializer(notification)
+        return Response(serializer.data, status=status.HTTP_200_OK)

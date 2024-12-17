@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 
 from bookings.models import Booking
 
+from .models import NotificationMessage
+
 User = get_user_model()
 
 class EarningsSerializer(serializers.ModelSerializer):
@@ -15,3 +17,8 @@ class EarningsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = ['transaction_no', 'status', 'rider_name', 'rider_email', 'date', 'price']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationMessage
+        fields = '__all__'
