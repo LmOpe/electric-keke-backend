@@ -13,7 +13,8 @@ from drf_yasg import openapi
 
 from bookings.models import Booking
 
-from .serializers import EarningsSerializer
+from .models import NotificationMessage
+from .serializers import EarningsSerializer, NotificationSerializer
 
 User = get_user_model()
 
@@ -236,4 +237,12 @@ class EarningsListView(ListAPIView):
 
         # Prepare response data using serializer
         serializer = EarningsSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+class AdminNotificationView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        queryset = NotificationMessage.objects.filter(is_read=False)
+        serializer = NotificationSerializer(queryset, many=True)
         return Response(serializer.data)

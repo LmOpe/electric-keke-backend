@@ -27,6 +27,8 @@ from drf_yasg import openapi
 from ecoride.utils import send_otp_email, hash_to_smaller_int
 from ecoride.settings import BACKEND_URL
 
+from admins.models import NotificationMessage
+
 from  bookings.models import Wallet
 
 from .models import OTP, User
@@ -130,6 +132,11 @@ class ActivateUserView(APIView, OTPVerificationMixin):
         # Create Wallet instance for each rider
         if user.role == "Rider":
             Wallet(rider=user).save()
+
+        NotificationMessage(
+            title="New user registered",
+            body=f"User, {user.fullname} just signed up and activated their account"
+        )
         return Response({'detail': 'User activated successfully.'}, status=status.HTTP_200_OK)
 
 class VerifyOTPView(APIView, OTPVerificationMixin):
@@ -157,7 +164,7 @@ class VerifyOTPView(APIView, OTPVerificationMixin):
         user_id = request.data.get('id')
         otp = request.data.get('otp')
 
-        user, error_response = self.verify_otp(user_id, otp)
+        _, error_response = self.verify_otp(user_id, otp)
         if error_response:
             return error_response
 

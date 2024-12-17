@@ -8,6 +8,8 @@ from rest_framework import serializers
 from users.models import User
 from ecoride.utils import send_notification, create_payment_reference
 
+from admins.models import NotificationMessage
+
 from .models import Booking, Wallet, WithdrawalRequest
 
 class RiderSerializer(serializers.ModelSerializer):
@@ -73,6 +75,10 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
         send_notification(rider.id, notification_data)
 
+        NotificationMessage(
+            title="New ride request",
+            body=f"{booking.user.fullname} booked a {booking.booking_type} with {booking.rider.fullname}"
+        )
         return booking
 
 class BookingStatusUpdateSerializer(serializers.ModelSerializer):
