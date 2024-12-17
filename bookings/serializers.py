@@ -78,7 +78,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         NotificationMessage(
             title="New ride request",
             body=f"{booking.user.fullname} booked a {booking.booking_type} with {booking.rider.fullname}"
-        )
+        ).save()
         return booking
 
 class BookingStatusUpdateSerializer(serializers.ModelSerializer):

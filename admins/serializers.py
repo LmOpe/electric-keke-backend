@@ -18,7 +18,7 @@ class EarningsSerializer(serializers.ModelSerializer):
         model = Booking
         fields = ['transaction_no', 'status', 'rider_name', 'rider_email', 'date', 'price']
 
-class NotificationSerializer(serializers.Serializer):
+class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationMessage
         fields = '__all__'

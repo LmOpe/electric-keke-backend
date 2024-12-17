@@ -136,7 +136,7 @@ class ActivateUserView(APIView, OTPVerificationMixin):
         NotificationMessage(
             title="New user registered",
             body=f"User, {user.fullname} just signed up and activated their account"
-        )
+        ).save()
         return Response({'detail': 'User activated successfully.'}, status=status.HTTP_200_OK)
 
 class VerifyOTPView(APIView, OTPVerificationMixin):
